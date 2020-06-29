@@ -33,7 +33,7 @@
 #include "core/error_macros.h"
 #include "core/io/zip_io.h"
 
-Error ZipReader::open(String path) {
+Error ZIPReader::open(String path) {
 	if (f) {
 		close();
 	}
@@ -43,14 +43,14 @@ Error ZipReader::open(String path) {
 	return uzf != NULL ? OK : FAILED;
 }
 
-Error ZipReader::close() {
-	ERR_FAIL_COND_V_MSG(!f, FAILED, "ZipReader cannot be closed because it is not open.")
+Error ZIPReader::close() {
+	ERR_FAIL_COND_V_MSG(!f, FAILED, "ZIPReader cannot be closed because it is not open.")
 
 	return unzClose(uzf) == UNZ_OK ? OK : FAILED;
 }
 
-PoolStringArray ZipReader::get_files() {
-	ERR_FAIL_COND_V_MSG(!f, PoolStringArray(), "ZipReader must be opened before use.")
+PoolStringArray ZIPReader::get_files() {
+	ERR_FAIL_COND_V_MSG(!f, PoolStringArray(), "ZIPReader must be opened before use.")
 
 	List<String> s;
 
@@ -73,8 +73,8 @@ PoolStringArray ZipReader::get_files() {
 	return arr;
 }
 
-PoolByteArray ZipReader::read_file(String path, bool case_sensitive) {
-	ERR_FAIL_COND_V_MSG(!f, PoolByteArray(), "ZipReader must be opened before use.")
+PoolByteArray ZIPReader::read_file(String path, bool case_sensitive) {
+	ERR_FAIL_COND_V_MSG(!f, PoolByteArray(), "ZIPReader must be opened before use.")
 
 	int cs = case_sensitive ? 1 : 2;
 	if (unzLocateFile(uzf, path.utf8().get_data(), cs) != UNZ_OK) {
@@ -97,19 +97,19 @@ PoolByteArray ZipReader::read_file(String path, bool case_sensitive) {
 	return data;
 }
 
-ZipReader::ZipReader() {
+ZIPReader::ZIPReader() {
 	f = NULL;
 }
 
-ZipReader::~ZipReader() {
+ZIPReader::~ZIPReader() {
 	if (f) {
 		close();
 	}
 }
 
-void ZipReader::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("open", "path"), &ZipReader::open);
-	ClassDB::bind_method(D_METHOD("close"), &ZipReader::close);
-	ClassDB::bind_method(D_METHOD("get_files"), &ZipReader::get_files);
-	ClassDB::bind_method(D_METHOD("read_file", "path", "case_sensitive"), &ZipReader::read_file, DEFVAL(Variant(true)));
+void ZIPReader::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("open", "path"), &ZIPReader::open);
+	ClassDB::bind_method(D_METHOD("close"), &ZIPReader::close);
+	ClassDB::bind_method(D_METHOD("get_files"), &ZIPReader::get_files);
+	ClassDB::bind_method(D_METHOD("read_file", "path", "case_sensitive"), &ZIPReader::read_file, DEFVAL(Variant(true)));
 }
