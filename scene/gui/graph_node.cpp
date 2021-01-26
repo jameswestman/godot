@@ -50,16 +50,20 @@ bool GraphNode::_set(const StringName &p_name, const Variant &p_value) {
 		si.type_left = p_value;
 	else if (what == "left_color")
 		si.color_left = p_value;
+	else if (what == "left_icon")
+		si.custom_slot_left = p_value;
 	else if (what == "right_enabled")
 		si.enable_right = p_value;
 	else if (what == "right_type")
 		si.type_right = p_value;
 	else if (what == "right_color")
 		si.color_right = p_value;
+	else if (what == "right_icon")
+		si.custom_slot_right = p_value;
 	else
 		return false;
 
-	set_slot(idx, si.enable_left, si.type_left, si.color_left, si.enable_right, si.type_right, si.color_right);
+	set_slot(idx, si.enable_left, si.type_left, si.color_left, si.enable_right, si.type_right, si.color_right, si.custom_slot_left, si.custom_slot_right);
 	update();
 	return true;
 }
@@ -83,12 +87,16 @@ bool GraphNode::_get(const StringName &p_name, Variant &r_ret) const {
 		r_ret = si.type_left;
 	else if (what == "left_color")
 		r_ret = si.color_left;
+	else if (what == "left_icon")
+		r_ret = si.custom_slot_left;
 	else if (what == "right_enabled")
 		r_ret = si.enable_right;
 	else if (what == "right_type")
 		r_ret = si.type_right;
 	else if (what == "right_color")
 		r_ret = si.color_right;
+	else if (what == "right_icon")
+		r_ret = si.custom_slot_right;
 	else
 		return false;
 
@@ -107,9 +115,11 @@ void GraphNode::_get_property_list(List<PropertyInfo> *p_list) const {
 		p_list->push_back(PropertyInfo(Variant::BOOL, base + "left_enabled"));
 		p_list->push_back(PropertyInfo(Variant::INT, base + "left_type"));
 		p_list->push_back(PropertyInfo(Variant::COLOR, base + "left_color"));
+		p_list->push_back(PropertyInfo(Variant::OBJECT, base + "left_icon", PROPERTY_HINT_RESOURCE_TYPE, "Texture", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_STORE_IF_NULL));
 		p_list->push_back(PropertyInfo(Variant::BOOL, base + "right_enabled"));
 		p_list->push_back(PropertyInfo(Variant::INT, base + "right_type"));
 		p_list->push_back(PropertyInfo(Variant::COLOR, base + "right_color"));
+		p_list->push_back(PropertyInfo(Variant::OBJECT, base + "right_icon", PROPERTY_HINT_RESOURCE_TYPE, "Texture", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_STORE_IF_NULL));
 
 		idx++;
 	}
