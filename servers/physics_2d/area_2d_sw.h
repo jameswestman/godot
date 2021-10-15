@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,26 +32,24 @@
 #define AREA_2D_SW_H
 
 #include "collision_object_2d_sw.h"
-#include "core/self_list.h"
-#include "servers/physics_2d_server.h"
-//#include "servers/physics/query_sw.h"
+#include "core/templates/self_list.h"
+#include "servers/physics_server_2d.h"
 
 class Space2DSW;
 class Body2DSW;
 class Constraint2DSW;
 
 class Area2DSW : public CollisionObject2DSW {
-
-	Physics2DServer::AreaSpaceOverrideMode space_override_mode;
-	real_t gravity;
-	Vector2 gravity_vector;
-	bool gravity_is_point;
-	real_t gravity_distance_scale;
-	real_t point_attenuation;
-	real_t linear_damp;
-	real_t angular_damp;
-	int priority;
-	bool monitorable;
+	PhysicsServer2D::AreaSpaceOverrideMode space_override_mode = PhysicsServer2D::AREA_SPACE_OVERRIDE_DISABLED;
+	real_t gravity = 9.80665;
+	Vector2 gravity_vector = Vector2(0, -1);
+	bool gravity_is_point = false;
+	real_t gravity_distance_scale = 0.0;
+	real_t point_attenuation = 1.0;
+	real_t linear_damp = 0.1;
+	real_t angular_damp = 1.0;
+	int priority = 0;
+	bool monitorable = false;
 
 	ObjectID monitor_callback_id;
 	StringName monitor_callback_method;
@@ -63,23 +61,21 @@ class Area2DSW : public CollisionObject2DSW {
 	SelfList<Area2DSW> moved_list;
 
 	struct BodyKey {
-
 		RID rid;
 		ObjectID instance_id;
-		uint32_t body_shape;
-		uint32_t area_shape;
+		uint32_t body_shape = 0;
+		uint32_t area_shape = 0;
 
 		_FORCE_INLINE_ bool operator<(const BodyKey &p_key) const {
-
 			if (rid == p_key.rid) {
-
 				if (body_shape == p_key.body_shape) {
-
 					return area_shape < p_key.area_shape;
-				} else
+				} else {
 					return body_shape < p_key.body_shape;
-			} else
+				}
+			} else {
 				return rid < p_key.rid;
+			}
 		}
 
 		_FORCE_INLINE_ BodyKey() {}
@@ -88,32 +84,25 @@ class Area2DSW : public CollisionObject2DSW {
 	};
 
 	struct BodyState {
-
-		int state;
+		int state = 0;
 		_FORCE_INLINE_ void inc() { state++; }
 		_FORCE_INLINE_ void dec() { state--; }
-		_FORCE_INLINE_ BodyState() { state = 0; }
 	};
 
 	Map<BodyKey, BodyState> monitored_bodies;
 	Map<BodyKey, BodyState> monitored_areas;
 
-	//virtual void shape_changed_notify(Shape2DSW *p_shape);
-	//virtual void shape_deleted_notify(Shape2DSW *p_shape);
 	Set<Constraint2DSW *> constraints;
 
 	virtual void _shapes_changed();
 	void _queue_monitor_update();
 
 public:
-	//_FORCE_INLINE_ const Matrix32& get_inverse_transform() const { return inverse_transform; }
-	//_FORCE_INLINE_ SpaceSW* get_owner() { return owner; }
-
 	void set_monitor_callback(ObjectID p_id, const StringName &p_method);
-	_FORCE_INLINE_ bool has_monitor_callback() const { return monitor_callback_id; }
+	_FORCE_INLINE_ bool has_monitor_callback() const { return monitor_callback_id.is_valid(); }
 
 	void set_area_monitor_callback(ObjectID p_id, const StringName &p_method);
-	_FORCE_INLINE_ bool has_area_monitor_callback() const { return area_monitor_callback_id; }
+	_FORCE_INLINE_ bool has_area_monitor_callback() const { return area_monitor_callback_id.is_valid(); }
 
 	_FORCE_INLINE_ void add_body_to_query(Body2DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape);
 	_FORCE_INLINE_ void remove_body_from_query(Body2DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape);
@@ -121,11 +110,11 @@ public:
 	_FORCE_INLINE_ void add_area_to_query(Area2DSW *p_area, uint32_t p_area_shape, uint32_t p_self_shape);
 	_FORCE_INLINE_ void remove_area_from_query(Area2DSW *p_area, uint32_t p_area_shape, uint32_t p_self_shape);
 
-	void set_param(Physics2DServer::AreaParameter p_param, const Variant &p_value);
-	Variant get_param(Physics2DServer::AreaParameter p_param) const;
+	void set_param(PhysicsServer2D::AreaParameter p_param, const Variant &p_value);
+	Variant get_param(PhysicsServer2D::AreaParameter p_param) const;
 
-	void set_space_override_mode(Physics2DServer::AreaSpaceOverrideMode p_mode);
-	Physics2DServer::AreaSpaceOverrideMode get_space_override_mode() const { return space_override_mode; }
+	void set_space_override_mode(PhysicsServer2D::AreaSpaceOverrideMode p_mode);
+	PhysicsServer2D::AreaSpaceOverrideMode get_space_override_mode() const { return space_override_mode; }
 
 	_FORCE_INLINE_ void set_gravity(real_t p_gravity) { gravity = p_gravity; }
 	_FORCE_INLINE_ real_t get_gravity() const { return gravity; }
@@ -165,38 +154,42 @@ public:
 
 	void call_queries();
 
+	void compute_gravity(const Vector2 &p_position, Vector2 &r_gravity) const;
+
 	Area2DSW();
 	~Area2DSW();
 };
 
 void Area2DSW::add_body_to_query(Body2DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape) {
-
 	BodyKey bk(p_body, p_body_shape, p_area_shape);
 	monitored_bodies[bk].inc();
-	if (!monitor_query_list.in_list())
+	if (!monitor_query_list.in_list()) {
 		_queue_monitor_update();
+	}
 }
-void Area2DSW::remove_body_from_query(Body2DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape) {
 
+void Area2DSW::remove_body_from_query(Body2DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape) {
 	BodyKey bk(p_body, p_body_shape, p_area_shape);
 	monitored_bodies[bk].dec();
-	if (!monitor_query_list.in_list())
+	if (!monitor_query_list.in_list()) {
 		_queue_monitor_update();
+	}
 }
 
 void Area2DSW::add_area_to_query(Area2DSW *p_area, uint32_t p_area_shape, uint32_t p_self_shape) {
-
 	BodyKey bk(p_area, p_area_shape, p_self_shape);
 	monitored_areas[bk].inc();
-	if (!monitor_query_list.in_list())
+	if (!monitor_query_list.in_list()) {
 		_queue_monitor_update();
+	}
 }
-void Area2DSW::remove_area_from_query(Area2DSW *p_area, uint32_t p_area_shape, uint32_t p_self_shape) {
 
+void Area2DSW::remove_area_from_query(Area2DSW *p_area, uint32_t p_area_shape, uint32_t p_self_shape) {
 	BodyKey bk(p_area, p_area_shape, p_self_shape);
 	monitored_areas[bk].dec();
-	if (!monitor_query_list.in_list())
+	if (!monitor_query_list.in_list()) {
 		_queue_monitor_update();
+	}
 }
 
 #endif // AREA_2D_SW_H

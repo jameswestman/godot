@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,7 +31,7 @@
 #ifndef SCENE_TREE_EDITOR_H
 #define SCENE_TREE_EDITOR_H
 
-#include "core/undo_redo.h"
+#include "core/object/undo_redo.h"
 #include "editor_data.h"
 #include "editor_settings.h"
 #include "scene/gui/button.h"
@@ -39,12 +39,11 @@
 #include "scene/gui/tree.h"
 
 class SceneTreeEditor : public Control {
-
 	GDCLASS(SceneTreeEditor, Control);
 
 	EditorSelection *editor_selection;
 
-	enum {
+	enum SceneTreeEditorButton {
 		BUTTON_SUBSCENE = 0,
 		BUTTON_VISIBILITY = 1,
 		BUTTON_SCRIPT = 2,
@@ -65,6 +64,7 @@ class SceneTreeEditor : public Control {
 	AcceptDialog *error;
 	AcceptDialog *warning;
 
+	bool auto_expand_selected = true;
 	bool connect_to_script_mode;
 	bool connecting_signal;
 
@@ -72,10 +72,11 @@ class SceneTreeEditor : public Control {
 
 	void _compute_hash(Node *p_node, uint64_t &hash);
 
-	bool _add_nodes(Node *p_node, TreeItem *p_parent);
+	bool _add_nodes(Node *p_node, TreeItem *p_parent, bool p_scroll_to_selected = false);
 	void _test_update_tree();
-	void _update_tree();
+	void _update_tree(bool p_scroll_to_selected = false);
 	void _tree_changed();
+	void _tree_process_mode_changed();
 	void _node_removed(Node *p_node);
 	void _node_renamed(Node *p_node);
 
@@ -139,7 +140,6 @@ public:
 
 	void set_undo_redo(UndoRedo *p_undo_redo) { undo_redo = p_undo_redo; };
 	void set_display_foreign_nodes(bool p_display);
-	bool get_display_foreign_nodes() const;
 
 	void set_marked(const Set<Node *> &p_marked, bool p_selectable = false, bool p_children_selectable = true);
 	void set_marked(Node *p_marked, bool p_selectable = false, bool p_children_selectable = true);
@@ -153,17 +153,19 @@ public:
 
 	void update_tree() { _update_tree(); }
 
+	void set_auto_expand_selected(bool p_auto, bool p_update_settings);
 	void set_connect_to_script_mode(bool p_enable);
 	void set_connecting_signal(bool p_enable);
 
 	Tree *get_scene_tree() { return tree; }
+
+	void update_warning();
 
 	SceneTreeEditor(bool p_label = true, bool p_can_rename = false, bool p_can_open_instance = false);
 	~SceneTreeEditor();
 };
 
 class SceneTreeDialog : public ConfirmationDialog {
-
 	GDCLASS(SceneTreeDialog, ConfirmationDialog);
 
 	SceneTreeEditor *tree;
@@ -181,7 +183,9 @@ protected:
 	static void _bind_methods();
 
 public:
+	void popup_scenetree_dialog();
 	SceneTreeEditor *get_scene_tree() { return tree; }
+	LineEdit *get_filter_line_edit() { return filter; }
 	SceneTreeDialog();
 	~SceneTreeDialog();
 };

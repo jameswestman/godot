@@ -1,12 +1,13 @@
 def can_build(env, platform):
     return True
 
+
 def configure(env):
     pass
 
+
 def get_doc_classes():
     return [
-        "@VisualScript",
         "VisualScriptBasicTypeConstant",
         "VisualScriptBuiltinFunc",
         "VisualScriptClassConstant",
@@ -16,6 +17,7 @@ def get_doc_classes():
         "VisualScriptConstant",
         "VisualScriptConstructor",
         "VisualScriptCustomNode",
+        "VisualScriptCustomNodes",
         "VisualScriptDeconstruct",
         "VisualScriptEditor",
         "VisualScriptEmitSignal",
@@ -55,6 +57,7 @@ def get_doc_classes():
         "VisualScriptYieldSignal",
         "VisualScriptYield",
     ]
+
 
 def get_doc_path():
     return "doc_classes"

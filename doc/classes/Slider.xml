@@ -1,15 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="Slider" inherits="Range" category="Core" version="3.2">
+<class name="Slider" inherits="Range" version="4.0">
 	<brief_description>
 		Base class for GUI sliders.
 	</brief_description>
 	<description>
 		Base class for GUI sliders.
+		[b]Note:[/b] The [signal Range.changed] and [signal Range.value_changed] signals are part of the [Range] class which this class inherits from.
 	</description>
 	<tutorials>
 	</tutorials>
-	<methods>
-	</methods>
 	<members>
 		<member name="editable" type="bool" setter="set_editable" getter="is_editable" default="true">
 			If [code]true[/code], the slider can be interacted with. If [code]false[/code], the value can be changed only by code.
@@ -26,6 +25,4 @@
 			If [code]true[/code], the slider will display ticks for minimum and maximum values.
 		</member>
 	</members>
-	<constants>
-	</constants>
 </class>

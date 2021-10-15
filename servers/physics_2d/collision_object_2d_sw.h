@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,8 +32,8 @@
 #define COLLISION_OBJECT_2D_SW_H
 
 #include "broad_phase_2d_sw.h"
-#include "core/self_list.h"
-#include "servers/physics_2d_server.h"
+#include "core/templates/self_list.h"
+#include "servers/physics_server_2d.h"
 #include "shape_2d_sw.h"
 
 class Space2DSW;
@@ -50,33 +50,26 @@ private:
 	RID self;
 	ObjectID instance_id;
 	ObjectID canvas_instance_id;
-	bool pickable;
+	bool pickable = true;
 
 	struct Shape {
-
 		Transform2D xform;
 		Transform2D xform_inv;
-		BroadPhase2DSW::ID bpid;
+		BroadPhase2DSW::ID bpid = 0;
 		Rect2 aabb_cache; //for rayqueries
-		Shape2DSW *shape;
-		Variant metadata;
-		bool disabled;
-		bool one_way_collision;
-		float one_way_collision_margin;
-		Shape() {
-			disabled = false;
-			one_way_collision = false;
-			one_way_collision_margin = 0;
-		}
+		Shape2DSW *shape = nullptr;
+		bool disabled = false;
+		bool one_way_collision = false;
+		real_t one_way_collision_margin = 0.0;
 	};
 
 	Vector<Shape> shapes;
-	Space2DSW *space;
+	Space2DSW *space = nullptr;
 	Transform2D transform;
 	Transform2D inv_transform;
-	uint32_t collision_mask;
-	uint32_t collision_layer;
-	bool _static;
+	uint32_t collision_mask = 1;
+	uint32_t collision_layer = 1;
+	bool _static = true;
 
 	SelfList<CollisionObject2DSW> pending_shape_update_list;
 
@@ -116,13 +109,8 @@ public:
 	void add_shape(Shape2DSW *p_shape, const Transform2D &p_transform = Transform2D(), bool p_disabled = false);
 	void set_shape(int p_index, Shape2DSW *p_shape);
 	void set_shape_transform(int p_index, const Transform2D &p_transform);
-	void set_shape_metadata(int p_index, const Variant &p_metadata);
 
 	_FORCE_INLINE_ int get_shape_count() const { return shapes.size(); }
-	_FORCE_INLINE_ bool is_shape_disabled(int p_index) const {
-		CRASH_BAD_INDEX(p_index, shapes.size());
-		return shapes[p_index].disabled;
-	}
 	_FORCE_INLINE_ Shape2DSW *get_shape(int p_index) const {
 		CRASH_BAD_INDEX(p_index, shapes.size());
 		return shapes[p_index].shape;
@@ -139,22 +127,18 @@ public:
 		CRASH_BAD_INDEX(p_index, shapes.size());
 		return shapes[p_index].aabb_cache;
 	}
-	_FORCE_INLINE_ const Variant &get_shape_metadata(int p_index) const {
-		CRASH_BAD_INDEX(p_index, shapes.size());
-		return shapes[p_index].metadata;
-	}
 
-	_FORCE_INLINE_ Transform2D get_transform() const { return transform; }
-	_FORCE_INLINE_ Transform2D get_inv_transform() const { return inv_transform; }
+	_FORCE_INLINE_ const Transform2D &get_transform() const { return transform; }
+	_FORCE_INLINE_ const Transform2D &get_inv_transform() const { return inv_transform; }
 	_FORCE_INLINE_ Space2DSW *get_space() const { return space; }
 
-	void set_shape_as_disabled(int p_idx, bool p_disabled);
-	_FORCE_INLINE_ bool is_shape_set_as_disabled(int p_idx) const {
-		CRASH_BAD_INDEX(p_idx, shapes.size());
+	void set_shape_disabled(int p_idx, bool p_disabled);
+	_FORCE_INLINE_ bool is_shape_disabled(int p_idx) const {
+		ERR_FAIL_INDEX_V(p_idx, shapes.size(), false);
 		return shapes[p_idx].disabled;
 	}
 
-	_FORCE_INLINE_ void set_shape_as_one_way_collision(int p_idx, bool p_one_way_collision, float p_margin) {
+	_FORCE_INLINE_ void set_shape_as_one_way_collision(int p_idx, bool p_one_way_collision, real_t p_margin) {
 		CRASH_BAD_INDEX(p_idx, shapes.size());
 		shapes.write[p_idx].one_way_collision = p_one_way_collision;
 		shapes.write[p_idx].one_way_collision_margin = p_margin;
@@ -164,15 +148,21 @@ public:
 		return shapes[p_idx].one_way_collision;
 	}
 
-	_FORCE_INLINE_ float get_shape_one_way_collision_margin(int p_idx) const {
+	_FORCE_INLINE_ real_t get_shape_one_way_collision_margin(int p_idx) const {
 		CRASH_BAD_INDEX(p_idx, shapes.size());
 		return shapes[p_idx].one_way_collision_margin;
 	}
 
-	void set_collision_mask(uint32_t p_mask) { collision_mask = p_mask; }
+	void set_collision_mask(uint32_t p_mask) {
+		collision_mask = p_mask;
+		_shape_changed();
+	}
 	_FORCE_INLINE_ uint32_t get_collision_mask() const { return collision_mask; }
 
-	void set_collision_layer(uint32_t p_layer) { collision_layer = p_layer; }
+	void set_collision_layer(uint32_t p_layer) {
+		collision_layer = p_layer;
+		_shape_changed();
+	}
 	_FORCE_INLINE_ uint32_t get_collision_layer() const { return collision_layer; }
 
 	void remove_shape(Shape2DSW *p_shape);
@@ -185,8 +175,11 @@ public:
 	void set_pickable(bool p_pickable) { pickable = p_pickable; }
 	_FORCE_INLINE_ bool is_pickable() const { return pickable; }
 
-	_FORCE_INLINE_ bool test_collision_mask(CollisionObject2DSW *p_other) const {
+	_FORCE_INLINE_ bool collides_with(CollisionObject2DSW *p_other) const {
+		return p_other->collision_layer & collision_mask;
+	}
 
+	_FORCE_INLINE_ bool interacts_with(CollisionObject2DSW *p_other) const {
 		return collision_layer & p_other->collision_mask || p_other->collision_layer & collision_mask;
 	}
 

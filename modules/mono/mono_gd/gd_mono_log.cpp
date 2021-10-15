@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,7 +32,7 @@
 
 #include <stdlib.h> // abort
 
-#include "core/os/dir_access.h"
+#include "core/io/dir_access.h"
 #include "core/os/os.h"
 
 #include "../godotsharp_dirs.h"
@@ -46,44 +46,50 @@ static CharString get_default_log_level() {
 #endif
 }
 
-GDMonoLog *GDMonoLog::singleton = NULL;
+GDMonoLog *GDMonoLog::singleton = nullptr;
 
-#if !defined(JAVASCRIPT_ENABLED)
+#ifdef GD_MONO_LOG_ENABLED
 
 static int get_log_level_id(const char *p_log_level) {
-
-	const char *valid_log_levels[] = { "error", "critical", "warning", "message", "info", "debug", NULL };
+	const char *valid_log_levels[] = { "error", "critical", "warning", "message", "info", "debug", nullptr };
 
 	int i = 0;
 	while (valid_log_levels[i]) {
-		if (!strcmp(valid_log_levels[i], p_log_level))
+		if (!strcmp(valid_log_levels[i], p_log_level)) {
 			return i;
+		}
 		i++;
 	}
 
 	return -1;
 }
 
-void GDMonoLog::mono_log_callback(const char *log_domain, const char *log_level, const char *message, mono_bool fatal, void *) {
+static String make_text(const char *log_domain, const char *log_level, const char *message) {
+	String text(message);
+	text += " (in domain ";
+	text += log_domain;
+	if (log_level) {
+		text += ", ";
+		text += log_level;
+	}
+	text += ")";
+	return text;
+}
 
+void GDMonoLog::mono_log_callback(const char *log_domain, const char *log_level, const char *message, mono_bool fatal, void *) {
 	FileAccess *f = GDMonoLog::get_singleton()->log_file;
 
 	if (GDMonoLog::get_singleton()->log_level_id >= get_log_level_id(log_level)) {
-		String text(message);
-		text += " (in domain ";
-		text += log_domain;
-		if (log_level) {
-			text += ", ";
-			text += log_level;
-		}
-		text += ")\n";
+		String text = make_text(log_domain, log_level, message);
+		text += "\n";
 
 		f->seek_end();
 		f->store_string(text);
 	}
 
 	if (fatal) {
-		ERR_PRINTS("Mono: FATAL ERROR, ABORTING! Logfile: '" + GDMonoLog::get_singleton()->log_file_path + "'.");
+		String text = make_text(log_domain, log_level, message);
+		ERR_PRINT("Mono: FATAL ERROR '" + text + "', ABORTING! Logfile: '" + GDMonoLog::get_singleton()->log_file_path + "'.");
 		// Make sure to flush before aborting
 		f->flush();
 		f->close();
@@ -94,7 +100,6 @@ void GDMonoLog::mono_log_callback(const char *log_domain, const char *log_level,
 }
 
 bool GDMonoLog::_try_create_logs_dir(const String &p_logs_dir) {
-
 	if (!DirAccess::exists(p_logs_dir)) {
 		DirAccessRef diraccess = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 		ERR_FAIL_COND_V(!diraccess, false);
@@ -106,7 +111,6 @@ bool GDMonoLog::_try_create_logs_dir(const String &p_logs_dir) {
 }
 
 void GDMonoLog::_delete_old_log_files(const String &p_logs_dir) {
-
 	static const uint64_t MAX_SECS = 5 * 86400; // 5 days
 
 	DirAccessRef da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
@@ -119,10 +123,12 @@ void GDMonoLog::_delete_old_log_files(const String &p_logs_dir) {
 
 	String current;
 	while ((current = da->get_next()).length()) {
-		if (da->current_is_dir())
+		if (da->current_is_dir()) {
 			continue;
-		if (!current.ends_with(".txt"))
+		}
+		if (!current.ends_with(".txt")) {
 			continue;
+		}
 
 		uint64_t modified_time = FileAccess::get_modified_time(da->get_current_dir().plus_file(current));
 
@@ -135,11 +141,10 @@ void GDMonoLog::_delete_old_log_files(const String &p_logs_dir) {
 }
 
 void GDMonoLog::initialize() {
-
 	CharString log_level = OS::get_singleton()->get_environment("GODOT_MONO_LOG_LEVEL").utf8();
 
 	if (log_level.length() != 0 && get_log_level_id(log_level.get_data()) == -1) {
-		ERR_PRINTS(String() + "Mono: Ignoring invalid log level (GODOT_MONO_LOG_LEVEL): '" + log_level.get_data() + "'.");
+		ERR_PRINT(String() + "Mono: Ignoring invalid log level (GODOT_MONO_LOG_LEVEL): '" + log_level.get_data() + "'.");
 		log_level = CharString();
 	}
 
@@ -155,19 +160,19 @@ void GDMonoLog::initialize() {
 		OS::Date date_now = OS::get_singleton()->get_date();
 		OS::Time time_now = OS::get_singleton()->get_time();
 
-		String log_file_name = str_format("%d_%02d_%02d %02d.%02d.%02d",
-				date_now.year, date_now.month, date_now.day,
-				time_now.hour, time_now.min, time_now.sec);
+		String log_file_name = str_format("%04d-%02d-%02d_%02d.%02d.%02d",
+				(int)date_now.year, (int)date_now.month, (int)date_now.day,
+				(int)time_now.hour, (int)time_now.minute, (int)time_now.second);
 
-		log_file_name += str_format(" (%d)", OS::get_singleton()->get_process_id());
+		log_file_name += str_format("_%d", OS::get_singleton()->get_process_id());
 
-		log_file_name += ".txt";
+		log_file_name += ".log";
 
 		log_file_path = logs_dir.plus_file(log_file_name);
 
 		log_file = FileAccess::open(log_file_path, FileAccess::WRITE);
 		if (!log_file) {
-			ERR_PRINTS("Mono: Cannot create log file at: " + log_file_path);
+			ERR_PRINT("Mono: Cannot create log file at: " + log_file_path);
 		}
 	}
 
@@ -175,7 +180,7 @@ void GDMonoLog::initialize() {
 	log_level_id = get_log_level_id(log_level.get_data());
 
 	if (log_file) {
-		OS::get_singleton()->print("Mono: Logfile is: %s\n", log_file_path.utf8().get_data());
+		OS::get_singleton()->print("Mono: Log file is: '%s'\n", log_file_path.utf8().get_data());
 		mono_trace_set_log_handler(mono_log_callback, this);
 	} else {
 		OS::get_singleton()->printerr("Mono: No log file, using default log handler\n");
@@ -183,15 +188,11 @@ void GDMonoLog::initialize() {
 }
 
 GDMonoLog::GDMonoLog() {
-
 	singleton = this;
-
-	log_level_id = -1;
 }
 
 GDMonoLog::~GDMonoLog() {
-
-	singleton = NULL;
+	singleton = nullptr;
 
 	if (log_file) {
 		log_file->close();
@@ -207,13 +208,11 @@ void GDMonoLog::initialize() {
 }
 
 GDMonoLog::GDMonoLog() {
-
 	singleton = this;
 }
 
 GDMonoLog::~GDMonoLog() {
-
-	singleton = NULL;
+	singleton = nullptr;
 }
 
 #endif // !defined(JAVASCRIPT_ENABLED)

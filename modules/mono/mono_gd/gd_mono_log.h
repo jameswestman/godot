@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -35,16 +35,20 @@
 
 #include "core/typedefs.h"
 
-#if !defined(JAVASCRIPT_ENABLED)
-#include "core/os/file_access.h"
+#if !defined(JAVASCRIPT_ENABLED) && !defined(IPHONE_ENABLED)
+// We have custom mono log callbacks for WASM and iOS
+#define GD_MONO_LOG_ENABLED
+#endif
+
+#ifdef GD_MONO_LOG_ENABLED
+#include "core/io/file_access.h"
 #endif
 
 class GDMonoLog {
+#ifdef GD_MONO_LOG_ENABLED
+	int log_level_id = -1;
 
-#if !defined(JAVASCRIPT_ENABLED)
-	int log_level_id;
-
-	FileAccess *log_file;
+	FileAccess *log_file = nullptr;
 	String log_file_path;
 
 	bool _try_create_logs_dir(const String &p_logs_dir);

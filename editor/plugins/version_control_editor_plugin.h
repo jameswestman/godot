@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -39,12 +39,10 @@
 #include "scene/gui/tree.h"
 
 class VersionControlEditorPlugin : public EditorPlugin {
-
 	GDCLASS(VersionControlEditorPlugin, EditorPlugin)
 
 public:
 	enum ChangeType {
-
 		CHANGE_TYPE_NEW = 0,
 		CHANGE_TYPE_MODIFIED = 1,
 		CHANGE_TYPE_RENAMED = 2,
@@ -91,7 +89,7 @@ private:
 	Label *commit_status;
 
 	PanelContainer *version_control_dock;
-	ToolButton *version_control_dock_button;
+	Button *version_control_dock_button;
 	VBoxContainer *diff_vbc;
 	HBoxContainer *diff_hbc;
 	Button *diff_refresh_button;
@@ -112,6 +110,8 @@ private:
 	void _clear_file_diff();
 	void _update_stage_status();
 	void _update_commit_status();
+	void _update_commit_button();
+	void _commit_message_gui_input(const Ref<InputEvent> &p_event);
 
 	friend class EditorVCSInterface;
 
@@ -122,7 +122,7 @@ public:
 	static VersionControlEditorPlugin *get_singleton();
 
 	void popup_vcs_set_up_dialog(const Control *p_gui_base);
-	void set_version_control_tool_button(ToolButton *p_button) { version_control_dock_button = p_button; }
+	void set_version_control_tool_button(Button *p_button) { version_control_dock_button = p_button; }
 
 	PopupMenu *get_version_control_actions_panel() const { return version_control_actions; }
 	VBoxContainer *get_version_commit_dock() const { return version_commit_dock; }
