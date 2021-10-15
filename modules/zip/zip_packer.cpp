@@ -58,9 +58,9 @@ Error ZIPPacker::start_file(String path) {
 
 	zipfi.tmz_date.tm_hour = time.hour;
 	zipfi.tmz_date.tm_mday = date.day;
-	zipfi.tmz_date.tm_min = time.min;
+	zipfi.tmz_date.tm_min = time.minute;
 	zipfi.tmz_date.tm_mon = date.month - 1;
-	zipfi.tmz_date.tm_sec = time.sec;
+	zipfi.tmz_date.tm_sec = time.second;
 	zipfi.tmz_date.tm_year = date.year;
 	zipfi.dosDate = 0;
 	zipfi.external_fa = 0;

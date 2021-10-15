@@ -31,14 +31,14 @@
 #ifndef ZIP_READER_H
 #define ZIP_READER_H
 
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 #include "core/os/os.h"
 #include "thirdparty/minizip/unzip.h"
 
-class ZIPReader : public Reference {
-	GDCLASS(ZIPReader, Reference)
+class ZIPReader : public RefCounted {
+	GDCLASS(ZIPReader, RefCounted)
 
 	FileAccess *f;
 	unzFile uzf;

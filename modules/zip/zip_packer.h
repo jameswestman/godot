@@ -31,14 +31,14 @@
 #ifndef ZIP_PACKER_H
 #define ZIP_PACKER_H
 
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 #include "core/os/os.h"
 #include "thirdparty/minizip/zip.h"
 
-class ZIPPacker : public Reference {
-	GDCLASS(ZIPPacker, Reference);
+class ZIPPacker : public RefCounted {
+	GDCLASS(ZIPPacker, RefCounted);
 
 	FileAccess *f;
 	zipFile zf;
