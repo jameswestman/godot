@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -39,12 +39,8 @@ extern "C" {
 
 typedef enum {
 	GODOT_METHOD_RPC_MODE_DISABLED,
-	GODOT_METHOD_RPC_MODE_REMOTE,
-	GODOT_METHOD_RPC_MODE_MASTER,
-	GODOT_METHOD_RPC_MODE_PUPPET,
-	GODOT_METHOD_RPC_MODE_REMOTESYNC,
-	GODOT_METHOD_RPC_MODE_MASTERSYNC,
-	GODOT_METHOD_RPC_MODE_PUPPETSYNC,
+	GODOT_METHOD_RPC_MODE_ANY_PEER,
+	GODOT_METHOD_RPC_MODE_AUTHORITY,
 } godot_nativescript_method_rpc_mode;
 
 typedef enum {
@@ -58,8 +54,10 @@ typedef enum {
 	GODOT_PROPERTY_HINT_FLAGS, ///< hint_text= "flag1,flag2,etc" (as bit flags)
 	GODOT_PROPERTY_HINT_LAYERS_2D_RENDER,
 	GODOT_PROPERTY_HINT_LAYERS_2D_PHYSICS,
+	GODOT_PROPERTY_HINT_LAYERS_2D_NAVIGATION,
 	GODOT_PROPERTY_HINT_LAYERS_3D_RENDER,
 	GODOT_PROPERTY_HINT_LAYERS_3D_PHYSICS,
+	GODOT_PROPERTY_HINT_LAYERS_3D_NAVIGATION,
 	GODOT_PROPERTY_HINT_FILE, ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
 	GODOT_PROPERTY_HINT_DIR, ///< a directory path must be passed
 	GODOT_PROPERTY_HINT_GLOBAL_FILE, ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"

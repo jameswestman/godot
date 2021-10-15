@@ -61,7 +61,7 @@ namespace GodotTools.Build
                     }
                     case BuildTool.JetBrainsMsBuild:
                     {
-                        var editorPath = (string)editorSettings.GetSetting(RiderPathManager.EditorPathSettingName);
+                        string editorPath = (string)editorSettings.GetSetting(RiderPathManager.EditorPathSettingName);
 
                         if (!File.Exists(editorPath))
                             throw new FileNotFoundException($"Cannot find Rider executable. Tried with path: {editorPath}");
@@ -86,7 +86,7 @@ namespace GodotTools.Build
                 {
                     case BuildTool.DotnetCli:
                     {
-                        string dotnetCliPath = OS.PathWhich("dotnet");
+                        string dotnetCliPath = FindBuildEngineOnUnix("dotnet");
                         if (!string.IsNullOrEmpty(dotnetCliPath))
                             return (dotnetCliPath, BuildTool.DotnetCli);
                         GD.PushError($"Cannot find executable for '{BuildManager.PropNameDotnetCli}'. Fallback to MSBuild from Mono.");
@@ -122,7 +122,11 @@ namespace GodotTools.Build
                 if (OS.IsMacOS)
                 {
                     result.Add("/Library/Frameworks/Mono.framework/Versions/Current/bin/");
+                    result.Add("/opt/local/bin/");
                     result.Add("/usr/local/var/homebrew/linked/mono/bin/");
+                    result.Add("/usr/local/bin/");
+                    result.Add("/usr/local/bin/dotnet/");
+                    result.Add("/usr/local/share/dotnet/");
                 }
 
                 result.Add("/opt/novell/mono/bin/");
@@ -161,7 +165,9 @@ namespace GodotTools.Build
 
             // Try to find 15.0 with vswhere
 
-            var envNames = Internal.GodotIs32Bits() ? new[] {"ProgramFiles", "ProgramW6432"} : new[] {"ProgramFiles(x86)", "ProgramFiles"};
+            string[] envNames = Internal.GodotIs32Bits() ?
+                envNames = new[] { "ProgramFiles", "ProgramW6432" } :
+                envNames = new[] { "ProgramFiles(x86)", "ProgramFiles" };
 
             string vsWherePath = null;
             foreach (var envName in envNames)
@@ -181,7 +187,7 @@ namespace GodotTools.Build
 
             var outputArray = new Godot.Collections.Array<string>();
             int exitCode = Godot.OS.Execute(vsWherePath, vsWhereArgs,
-                blocking: true, output: (Godot.Collections.Array)outputArray);
+                output: (Godot.Collections.Array)outputArray);
 
             if (exitCode != 0)
                 return string.Empty;

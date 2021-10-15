@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -90,6 +90,12 @@ bool Polygon2D::_edit_is_selected_on_click(const Point2 &p_point, double p_toler
 }
 #endif
 
+void Polygon2D::_validate_property(PropertyInfo &property) const {
+	if (!invert && property.name == "invert_border") {
+		property.usage = PROPERTY_USAGE_NOEDITOR;
+	}
+}
+
 void Polygon2D::_skeleton_bone_setup_changed() {
 	update();
 }
@@ -154,8 +160,8 @@ void Polygon2D::_notification(int p_what) {
 			if (invert) {
 				Rect2 bounds;
 				int highest_idx = -1;
-				float highest_y = -1e20;
-				float sum = 0;
+				real_t highest_y = -1e20;
+				real_t sum = 0.0;
 
 				for (int i = 0; i < len; i++) {
 					if (i == 0) {
@@ -273,7 +279,7 @@ void Polygon2D::_notification(int p_what) {
 
 				//normalize the weights
 				for (int i = 0; i < vc; i++) {
-					float tw = 0;
+					real_t tw = 0.0;
 					for (int j = 0; j < 4; j++) {
 						tw += weightsw[i * 4 + j];
 					}
@@ -296,17 +302,18 @@ void Polygon2D::_notification(int p_what) {
 					colors.write[i] = color_r[i];
 				}
 			} else {
-				colors.push_back(color);
+				colors.resize(len);
+				for (int i = 0; i < len; i++) {
+					colors.write[i] = color;
+				}
 			}
 
+			Vector<int> index_array;
+
 			if (invert || polygons.size() == 0) {
-				Vector<int> indices = Geometry2D::triangulate_polygon(points);
-				if (indices.size()) {
-					RS::get_singleton()->canvas_item_add_triangle_array(get_canvas_item(), indices, points, colors, uvs, bones, weights, texture.is_valid() ? texture->get_rid() : RID(), -1);
-				}
+				index_array = Geometry2D::triangulate_polygon(points);
 			} else {
 				//draw individual polygons
-				Vector<int> total_indices;
 				for (int i = 0; i < polygons.size(); i++) {
 					Vector<int> src_indices = polygons[i];
 					int ic = src_indices.size();
@@ -327,18 +334,38 @@ void Polygon2D::_notification(int p_what) {
 					int ic2 = indices.size();
 					const int *r2 = indices.ptr();
 
-					int bic = total_indices.size();
-					total_indices.resize(bic + ic2);
-					int *w2 = total_indices.ptrw();
+					int bic = index_array.size();
+					index_array.resize(bic + ic2);
+					int *w2 = index_array.ptrw();
 
 					for (int j = 0; j < ic2; j++) {
 						w2[j + bic] = r[r2[j]];
 					}
 				}
+			}
 
-				if (total_indices.size()) {
-					RS::get_singleton()->canvas_item_add_triangle_array(get_canvas_item(), total_indices, points, colors, uvs, bones, weights, texture.is_valid() ? texture->get_rid() : RID());
+			RS::get_singleton()->mesh_clear(mesh);
+
+			if (index_array.size()) {
+				Array arr;
+				arr.resize(RS::ARRAY_MAX);
+				arr[RS::ARRAY_VERTEX] = points;
+				if (uvs.size() == points.size()) {
+					arr[RS::ARRAY_TEX_UV] = uvs;
 				}
+				if (colors.size() == points.size()) {
+					arr[RS::ARRAY_COLOR] = colors;
+				}
+
+				if (bones.size() == points.size() * 4) {
+					arr[RS::ARRAY_BONES] = bones;
+					arr[RS::ARRAY_WEIGHTS] = weights;
+				}
+
+				arr[RS::ARRAY_INDEX] = index_array;
+
+				RS::get_singleton()->mesh_add_surface_from_arrays(mesh, RS::PRIMITIVE_TRIANGLES, arr, Array(), Dictionary(), RS::ARRAY_FLAG_USE_2D_VERTICES);
+				RS::get_singleton()->canvas_item_add_mesh(get_canvas_item(), mesh, Transform2D(), Color(1, 1, 1), texture.is_valid() ? texture->get_rid() : RID());
 			}
 
 		} break;
@@ -426,21 +453,13 @@ Vector2 Polygon2D::get_texture_offset() const {
 	return tex_ofs;
 }
 
-void Polygon2D::set_texture_rotation(float p_rot) {
+void Polygon2D::set_texture_rotation(real_t p_rot) {
 	tex_rot = p_rot;
 	update();
 }
 
-float Polygon2D::get_texture_rotation() const {
+real_t Polygon2D::get_texture_rotation() const {
 	return tex_rot;
-}
-
-void Polygon2D::set_texture_rotation_degrees(float p_rot) {
-	set_texture_rotation(Math::deg2rad(p_rot));
-}
-
-float Polygon2D::get_texture_rotation_degrees() const {
-	return Math::rad2deg(get_texture_rotation());
 }
 
 void Polygon2D::set_texture_scale(const Size2 &p_scale) {
@@ -455,6 +474,7 @@ Size2 Polygon2D::get_texture_scale() const {
 void Polygon2D::set_invert(bool p_invert) {
 	invert = p_invert;
 	update();
+	notify_property_list_changed();
 }
 
 bool Polygon2D::get_invert() const {
@@ -470,12 +490,12 @@ bool Polygon2D::get_antialiased() const {
 	return antialiased;
 }
 
-void Polygon2D::set_invert_border(float p_invert_border) {
+void Polygon2D::set_invert_border(real_t p_invert_border) {
 	invert_border = p_invert_border;
 	update();
 }
 
-float Polygon2D::get_invert_border() const {
+real_t Polygon2D::get_invert_border() const {
 	return invert_border;
 }
 
@@ -483,7 +503,6 @@ void Polygon2D::set_offset(const Vector2 &p_offset) {
 	offset = p_offset;
 	rect_cache_dirty = true;
 	update();
-	_change_notify("offset");
 }
 
 Vector2 Polygon2D::get_offset() const {
@@ -586,9 +605,6 @@ void Polygon2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_texture_rotation", "texture_rotation"), &Polygon2D::set_texture_rotation);
 	ClassDB::bind_method(D_METHOD("get_texture_rotation"), &Polygon2D::get_texture_rotation);
 
-	ClassDB::bind_method(D_METHOD("set_texture_rotation_degrees", "texture_rotation"), &Polygon2D::set_texture_rotation_degrees);
-	ClassDB::bind_method(D_METHOD("get_texture_rotation_degrees"), &Polygon2D::get_texture_rotation_degrees);
-
 	ClassDB::bind_method(D_METHOD("set_texture_scale", "texture_scale"), &Polygon2D::set_texture_scale);
 	ClassDB::bind_method(D_METHOD("get_texture_scale"), &Polygon2D::get_texture_scale);
 
@@ -630,8 +646,7 @@ void Polygon2D::_bind_methods() {
 	ADD_GROUP("Texture2D", "texture_");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_offset"), "set_texture_offset", "get_texture_offset");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_scale"), "set_texture_scale", "get_texture_scale");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "texture_rotation_degrees", PROPERTY_HINT_RANGE, "-360,360,0.1,or_lesser,or_greater"), "set_texture_rotation_degrees", "get_texture_rotation_degrees");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "texture_rotation", PROPERTY_HINT_NONE, "", 0), "set_texture_rotation", "get_texture_rotation");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "texture_rotation", PROPERTY_HINT_RANGE, "-360,360,0.1,or_lesser,or_greater,radians"), "set_texture_rotation", "get_texture_rotation");
 	ADD_GROUP("Skeleton", "");
 	ADD_PROPERTY(PropertyInfo(Variant::NODE_PATH, "skeleton", PROPERTY_HINT_NODE_PATH_VALID_TYPES, "Skeleton2D"), "set_skeleton", "get_skeleton");
 
@@ -649,13 +664,9 @@ void Polygon2D::_bind_methods() {
 }
 
 Polygon2D::Polygon2D() {
-	invert = false;
-	invert_border = 100;
-	antialiased = false;
-	tex_rot = 0;
-	tex_tile = true;
-	tex_scale = Vector2(1, 1);
-	color = Color(1, 1, 1);
-	rect_cache_dirty = true;
-	internal_vertices = 0;
+	mesh = RS::get_singleton()->mesh_create();
+}
+
+Polygon2D::~Polygon2D() {
+	RS::get_singleton()->free(mesh);
 }

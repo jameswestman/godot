@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -51,11 +51,15 @@ class CharProxy {
 	CowData<T> &_cowdata;
 	static const T _null = 0;
 
-	_FORCE_INLINE_ CharProxy(const int &p_index, CowData<T> &cowdata) :
+	_FORCE_INLINE_ CharProxy(const int &p_index, CowData<T> &p_cowdata) :
 			_index(p_index),
-			_cowdata(cowdata) {}
+			_cowdata(p_cowdata) {}
 
 public:
+	_FORCE_INLINE_ CharProxy(const CharProxy<T> &p_other) :
+			_index(p_other._index),
+			_cowdata(p_other._cowdata) {}
+
 	_FORCE_INLINE_ operator T() const {
 		if (unlikely(_index == _cowdata.size())) {
 			return _null;
@@ -68,12 +72,12 @@ public:
 		return _cowdata.ptr() + _index;
 	}
 
-	_FORCE_INLINE_ void operator=(const T &other) const {
-		_cowdata.set(_index, other);
+	_FORCE_INLINE_ void operator=(const T &p_other) const {
+		_cowdata.set(_index, p_other);
 	}
 
-	_FORCE_INLINE_ void operator=(const CharProxy<T> &other) const {
-		_cowdata.set(_index, other.operator T());
+	_FORCE_INLINE_ void operator=(const CharProxy<T> &p_other) const {
+		_cowdata.set(_index, p_other.operator T());
 	}
 };
 
@@ -309,7 +313,7 @@ public:
 	String unquote() const;
 	static String num(double p_num, int p_decimals = -1);
 	static String num_scientific(double p_num);
-	static String num_real(double p_num);
+	static String num_real(double p_num, bool p_trailing = true);
 	static String num_int64(int64_t p_num, int base = 10, bool capitalize_hex = false);
 	static String num_uint64(uint64_t p_num, int base = 10, bool capitalize_hex = false);
 	static String chr(char32_t p_char);
@@ -318,8 +322,8 @@ public:
 	bool is_numeric() const;
 
 	double to_float() const;
-	int64_t hex_to_int(bool p_with_prefix = true) const;
-	int64_t bin_to_int(bool p_with_prefix = true) const;
+	int64_t hex_to_int() const;
+	int64_t bin_to_int() const;
 	int64_t to_int() const;
 
 	static int64_t to_int(const char *p_str, int p_len = -1);
@@ -366,7 +370,7 @@ public:
 	String get_extension() const;
 	String get_basename() const;
 	String plus_file(const String &p_file) const;
-	char32_t ord_at(int p_idx) const;
+	char32_t unicode_at(int p_idx) const;
 
 	void erase(int p_pos, int p_chars);
 
@@ -394,11 +398,11 @@ public:
 	Vector<uint8_t> sha1_buffer() const;
 	Vector<uint8_t> sha256_buffer() const;
 
-	_FORCE_INLINE_ bool empty() const { return length() == 0; }
+	_FORCE_INLINE_ bool is_empty() const { return length() == 0; }
 
 	// path functions
-	bool is_abs_path() const;
-	bool is_rel_path() const;
+	bool is_absolute_path() const;
+	bool is_relative_path() const;
 	bool is_resource_file() const;
 	String path_to(const String &p_path) const;
 	String path_to_file(const String &p_path) const;
@@ -409,21 +413,23 @@ public:
 
 	String xml_escape(bool p_escape_quotes = false) const;
 	String xml_unescape() const;
-	String http_escape() const;
-	String http_unescape() const;
+	String uri_encode() const;
+	String uri_decode() const;
 	String c_escape() const;
 	String c_escape_multiline() const;
 	String c_unescape() const;
 	String json_escape() const;
 	String word_wrap(int p_chars_per_line) const;
-
-	String percent_encode() const;
-	String percent_decode() const;
+	Error parse_url(String &r_scheme, String &r_host, int &r_port, String &r_path) const;
 
 	String property_name_encode() const;
 
+	// node functions
+	static const String invalid_node_name_characters;
+	String validate_node_name() const;
+
 	bool is_valid_identifier() const;
-	bool is_valid_integer() const;
+	bool is_valid_int() const;
 	bool is_valid_float() const;
 	bool is_valid_hex_number(bool p_with_prefix) const;
 	bool is_valid_html_color() const;
@@ -521,10 +527,10 @@ String DTRN(const String &p_text, const String &p_text_plural, int p_n, const St
 #define TTRGET(m_value) TTR(m_value)
 
 #else
-#define TTR(m_value) (String())
-#define TTRN(m_value) (String())
-#define DTR(m_value) (String())
-#define DTRN(m_value) (String())
+#define TTR(m_value) String()
+#define TTRN(m_value) String()
+#define DTR(m_value) String()
+#define DTRN(m_value) String()
 #define TTRC(m_value) (m_value)
 #define TTRGET(m_value) (m_value)
 #endif

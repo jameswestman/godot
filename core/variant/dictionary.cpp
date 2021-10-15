@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -33,6 +33,11 @@
 #include "core/templates/ordered_hash_map.h"
 #include "core/templates/safe_refcount.h"
 #include "core/variant/variant.h"
+// required in this order by VariantInternal, do not remove this comment.
+#include "core/object/class_db.h"
+#include "core/object/object.h"
+#include "core/variant/type_info.h"
+#include "core/variant/variant_internal.h"
 
 struct DictionaryPrivate {
 	SafeRefCount refcount;
@@ -40,7 +45,7 @@ struct DictionaryPrivate {
 };
 
 void Dictionary::get_key_list(List<Variant> *p_keys) const {
-	if (_p->variant_map.empty()) {
+	if (_p->variant_map.is_empty()) {
 		return;
 	}
 
@@ -74,15 +79,32 @@ Variant Dictionary::get_value_at_index(int p_index) const {
 }
 
 Variant &Dictionary::operator[](const Variant &p_key) {
-	return _p->variant_map[p_key];
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		return _p->variant_map[sn->operator String()];
+	} else {
+		return _p->variant_map[p_key];
+	}
 }
 
 const Variant &Dictionary::operator[](const Variant &p_key) const {
-	return _p->variant_map[p_key];
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		return _p->variant_map[sn->operator String()];
+	} else {
+		return _p->variant_map[p_key];
+	}
 }
 
 const Variant *Dictionary::getptr(const Variant &p_key) const {
-	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::ConstElement E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(p_key);
+	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::ConstElement E;
+
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(sn->operator String());
+	} else {
+		E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(p_key);
+	}
 
 	if (!E) {
 		return nullptr;
@@ -91,8 +113,14 @@ const Variant *Dictionary::getptr(const Variant &p_key) const {
 }
 
 Variant *Dictionary::getptr(const Variant &p_key) {
-	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::Element E = _p->variant_map.find(p_key);
+	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::Element E;
 
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		E = ((OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(sn->operator String());
+	} else {
+		E = ((OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(p_key);
+	}
 	if (!E) {
 		return nullptr;
 	}
@@ -100,7 +128,14 @@ Variant *Dictionary::getptr(const Variant &p_key) {
 }
 
 Variant Dictionary::get_valid(const Variant &p_key) const {
-	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::ConstElement E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(p_key);
+	OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator>::ConstElement E;
+
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(sn->operator String());
+	} else {
+		E = ((const OrderedHashMap<Variant, Variant, VariantHasher, VariantComparator> *)&_p->variant_map)->find(p_key);
+	}
 
 	if (!E) {
 		return Variant();
@@ -121,12 +156,17 @@ int Dictionary::size() const {
 	return _p->variant_map.size();
 }
 
-bool Dictionary::empty() const {
+bool Dictionary::is_empty() const {
 	return !_p->variant_map.size();
 }
 
 bool Dictionary::has(const Variant &p_key) const {
-	return _p->variant_map.has(p_key);
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		return _p->variant_map.has(sn->operator String());
+	} else {
+		return _p->variant_map.has(p_key);
+	}
 }
 
 bool Dictionary::has_all(const Array &p_keys) const {
@@ -139,7 +179,12 @@ bool Dictionary::has_all(const Array &p_keys) const {
 }
 
 bool Dictionary::erase(const Variant &p_key) {
-	return _p->variant_map.erase(p_key);
+	if (p_key.get_type() == Variant::STRING_NAME) {
+		const StringName *sn = VariantInternal::get_string_name(&p_key);
+		return _p->variant_map.erase(sn->operator String());
+	} else {
+		return _p->variant_map.erase(p_key);
+	}
 }
 
 bool Dictionary::operator==(const Dictionary &p_dictionary) const {
@@ -192,7 +237,7 @@ uint32_t Dictionary::hash() const {
 
 Array Dictionary::keys() const {
 	Array varr;
-	if (_p->variant_map.empty()) {
+	if (_p->variant_map.is_empty()) {
 		return varr;
 	}
 
@@ -209,7 +254,7 @@ Array Dictionary::keys() const {
 
 Array Dictionary::values() const {
 	Array varr;
-	if (_p->variant_map.empty()) {
+	if (_p->variant_map.is_empty()) {
 		return varr;
 	}
 

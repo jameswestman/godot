@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -33,7 +33,7 @@
 #include "core/io/marshalls.h"
 #include "core/math/math_funcs.h"
 #include "core/object/class_db.h"
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 #include "core/os/os.h"
 #include "core/variant/variant_parser.h"
 
@@ -397,10 +397,10 @@ Error Expression::_get_token(Token &r_token) {
 						r_token.value = Math_TAU;
 					} else if (id == "INF") {
 						r_token.type = TK_CONSTANT;
-						r_token.value = Math_INF;
+						r_token.value = INFINITY;
 					} else if (id == "NAN") {
 						r_token.type = TK_CONSTANT;
-						r_token.value = Math_NAN;
+						r_token.value = NAN;
 					} else if (id == "not") {
 						r_token.type = TK_OP_NOT;
 					} else if (id == "or") {
@@ -978,7 +978,7 @@ Expression::ENode *Expression::_parse_expression() {
 		}
 	}
 
-	/* Reduce the set set of expressions and place them in an operator tree, respecting precedence */
+	/* Reduce the set of expressions and place them in an operator tree, respecting precedence */
 
 	while (expression.size() > 1) {
 		int next_op = -1;

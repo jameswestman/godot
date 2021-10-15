@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -45,7 +45,7 @@ public:
 	};
 
 private:
-	bool flat;
+	bool flat = false;
 	String text;
 	String xl_text;
 	Ref<TextParagraph> text_buf;
@@ -55,15 +55,16 @@ private:
 	TextDirection text_direction = TEXT_DIRECTION_AUTO;
 
 	Ref<Texture2D> icon;
-	bool expand_icon;
-	bool clip_text;
-	TextAlign align;
-	float _internal_margin[4];
+	bool expand_icon = false;
+	bool clip_text = false;
+	TextAlign align = ALIGN_CENTER;
+	TextAlign icon_align = ALIGN_LEFT;
+	float _internal_margin[4] = {};
 
 	void _shape();
 
 protected:
-	void _set_internal_margin(Margin p_margin, float p_value);
+	void _set_internal_margin(Side p_side, float p_value);
 	void _notification(int p_what);
 	static void _bind_methods();
 
@@ -90,17 +91,20 @@ public:
 	void set_icon(const Ref<Texture2D> &p_icon);
 	Ref<Texture2D> get_icon() const;
 
-	void set_expand_icon(bool p_expand_icon);
+	void set_expand_icon(bool p_enabled);
 	bool is_expand_icon() const;
 
-	void set_flat(bool p_flat);
+	void set_flat(bool p_enabled);
 	bool is_flat() const;
 
-	void set_clip_text(bool p_clip_text);
+	void set_clip_text(bool p_enabled);
 	bool get_clip_text() const;
 
 	void set_text_align(TextAlign p_align);
 	TextAlign get_text_align() const;
+
+	void set_icon_align(TextAlign p_align);
+	TextAlign get_icon_align() const;
 
 	Button(const String &p_text = String());
 	~Button();

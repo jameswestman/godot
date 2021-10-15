@@ -10,35 +10,28 @@
 	</tutorials>
 	<methods>
 		<method name="generate_triangle_mesh" qualifiers="const">
-			<return type="TriangleMesh">
-			</return>
+			<return type="TriangleMesh" />
 			<description>
 				Returns a [TriangleMesh] with the sprite's vertices following its current configuration (such as its [member axis] and [member pixel_size]).
 			</description>
 		</method>
 		<method name="get_draw_flag" qualifiers="const">
-			<return type="bool">
-			</return>
-			<argument index="0" name="flag" type="int" enum="SpriteBase3D.DrawFlags">
-			</argument>
+			<return type="bool" />
+			<argument index="0" name="flag" type="int" enum="SpriteBase3D.DrawFlags" />
 			<description>
 				Returns the value of the specified flag.
 			</description>
 		</method>
 		<method name="get_item_rect" qualifiers="const">
-			<return type="Rect2">
-			</return>
+			<return type="Rect2" />
 			<description>
 				Returns the rectangle representing this sprite.
 			</description>
 		</method>
 		<method name="set_draw_flag">
-			<return type="void">
-			</return>
-			<argument index="0" name="flag" type="int" enum="SpriteBase3D.DrawFlags">
-			</argument>
-			<argument index="1" name="enabled" type="bool">
-			</argument>
+			<return type="void" />
+			<argument index="0" name="flag" type="int" enum="SpriteBase3D.DrawFlags" />
+			<argument index="1" name="enabled" type="bool" />
 			<description>
 				If [code]true[/code], the specified flag will be enabled. See [enum SpriteBase3D.DrawFlags] for a list of flags.
 			</description>
@@ -66,14 +59,14 @@
 		<member name="flip_v" type="bool" setter="set_flip_v" getter="is_flipped_v" default="false">
 			If [code]true[/code], texture is flipped vertically.
 		</member>
-		<member name="modulate" type="Color" setter="set_modulate" getter="get_modulate" default="Color( 1, 1, 1, 1 )">
+		<member name="modulate" type="Color" setter="set_modulate" getter="get_modulate" default="Color(1, 1, 1, 1)">
 			A color value that gets multiplied on, could be used for mood-coloring or to simulate the color of light.
 		</member>
-		<member name="offset" type="Vector2" setter="set_offset" getter="get_offset" default="Vector2( 0, 0 )">
+		<member name="offset" type="Vector2" setter="set_offset" getter="get_offset" default="Vector2(0, 0)">
 			The texture's drawing offset.
 		</member>
 		<member name="opacity" type="float" setter="set_opacity" getter="get_opacity" default="1.0">
-			The objects visibility on a scale from [code]0[/code] fully invisible to [code]1[/code] fully visible.
+			The objects' visibility on a scale from [code]0[/code] fully invisible to [code]1[/code] fully visible.
 		</member>
 		<member name="pixel_size" type="float" setter="set_pixel_size" getter="get_pixel_size" default="0.01">
 			The size of one pixel's width on the sprite to scale it in 3D.
@@ -102,7 +95,7 @@
 			This mode performs standard alpha blending. It can display translucent areas, but transparency sorting issues may be visible when multiple transparent materials are overlapping.
 		</constant>
 		<constant name="ALPHA_CUT_DISCARD" value="1" enum="AlphaCutMode">
-			This mode only allows fully transparent or fully opaque pixels. Harsh edges will be visible unless some form of screen-space antialiasing is enabled (see [member ProjectSettings.rendering/quality/screen_filters/screen_space_aa]). On the bright side, this mode doesn't suffer from transparency sorting issues when multiple transparent materials are overlapping. This mode is also known as [i]alpha testing[/i] or [i]1-bit transparency[/i].
+			This mode only allows fully transparent or fully opaque pixels. Harsh edges will be visible unless some form of screen-space antialiasing is enabled (see [member ProjectSettings.rendering/anti_aliasing/quality/screen_space_aa]). On the bright side, this mode doesn't suffer from transparency sorting issues when multiple transparent materials are overlapping. This mode is also known as [i]alpha testing[/i] or [i]1-bit transparency[/i].
 		</constant>
 		<constant name="ALPHA_CUT_OPAQUE_PREPASS" value="2" enum="AlphaCutMode">
 			This mode draws fully opaque pixels in the depth prepass. This is slower than [constant ALPHA_CUT_DISABLED] or [constant ALPHA_CUT_DISCARD], but it allows displaying translucent areas and smooth edges while using proper sorting.

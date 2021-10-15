@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,10 +32,12 @@
 #define WINDOW_H
 
 #include "scene/main/viewport.h"
-#include "scene/resources/theme.h"
-#include "servers/display_server.h"
 
 class Control;
+class Font;
+class StyleBox;
+class Theme;
+
 class Window : public Viewport {
 	GDCLASS(Window, Viewport)
 public:
@@ -90,7 +92,7 @@ private:
 	mutable Size2i min_size;
 	mutable Size2i max_size;
 	mutable Mode mode = MODE_WINDOWED;
-	mutable bool flags[FLAG_MAX];
+	mutable bool flags[FLAG_MAX] = {};
 	bool visible = true;
 	bool focused = false;
 
@@ -103,11 +105,13 @@ private:
 
 	LayoutDirection layout_dir = LAYOUT_DIRECTION_INHERITED;
 
+	bool auto_translate = true;
+
 	void _update_child_controls();
 
 	Size2i content_scale_size;
-	ContentScaleMode content_scale_mode;
-	ContentScaleAspect content_scale_aspect;
+	ContentScaleMode content_scale_mode = CONTENT_SCALE_MODE_DISABLED;
+	ContentScaleAspect content_scale_aspect = CONTENT_SCALE_ASPECT_IGNORE;
 
 	void _make_window();
 	void _clear_window();
@@ -130,6 +134,7 @@ private:
 	Ref<Theme> theme;
 	Control *theme_owner = nullptr;
 	Window *theme_owner_window = nullptr;
+	StringName theme_type_variation;
 
 	Viewport *embedder = nullptr;
 
@@ -150,6 +155,7 @@ protected:
 	virtual Size2 _get_contents_minimum_size() const;
 	static void _bind_methods();
 	void _notification(int p_what);
+	virtual void _validate_property(PropertyInfo &property) const override;
 
 	virtual void add_child_notify(Node *p_child) override;
 	virtual void remove_child_notify(Node *p_child) override;
@@ -241,6 +247,10 @@ public:
 	void set_theme(const Ref<Theme> &p_theme);
 	Ref<Theme> get_theme() const;
 
+	void set_theme_type_variation(const StringName &p_theme_type);
+	StringName get_theme_type_variation() const;
+	_FORCE_INLINE_ void _get_theme_type_dependencies(const StringName &p_theme_type, List<StringName> *p_list) const;
+
 	Size2 get_contents_minimum_size() const;
 
 	void grab_focus();
@@ -250,21 +260,29 @@ public:
 	LayoutDirection get_layout_direction() const;
 	bool is_layout_rtl() const;
 
+	void set_auto_translate(bool p_enable);
+	bool is_auto_translating() const;
+	_FORCE_INLINE_ String atr(const String p_string) const { return is_auto_translating() ? tr(p_string) : p_string; };
+
 	Rect2i get_usable_parent_rect() const;
 
-	Ref<Texture2D> get_theme_icon(const StringName &p_name, const StringName &p_type = StringName()) const;
-	Ref<StyleBox> get_theme_stylebox(const StringName &p_name, const StringName &p_type = StringName()) const;
-	Ref<Font> get_theme_font(const StringName &p_name, const StringName &p_type = StringName()) const;
-	int get_theme_font_size(const StringName &p_name, const StringName &p_type = StringName()) const;
-	Color get_theme_color(const StringName &p_name, const StringName &p_type = StringName()) const;
-	int get_theme_constant(const StringName &p_name, const StringName &p_type = StringName()) const;
+	Ref<Texture2D> get_theme_icon(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	Ref<StyleBox> get_theme_stylebox(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	Ref<Font> get_theme_font(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	int get_theme_font_size(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	Color get_theme_color(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	int get_theme_constant(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
 
-	bool has_theme_icon(const StringName &p_name, const StringName &p_type = StringName()) const;
-	bool has_theme_stylebox(const StringName &p_name, const StringName &p_type = StringName()) const;
-	bool has_theme_font(const StringName &p_name, const StringName &p_type = StringName()) const;
-	bool has_theme_font_size(const StringName &p_name, const StringName &p_type = StringName()) const;
-	bool has_theme_color(const StringName &p_name, const StringName &p_type = StringName()) const;
-	bool has_theme_constant(const StringName &p_name, const StringName &p_type = StringName()) const;
+	bool has_theme_icon(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	bool has_theme_stylebox(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	bool has_theme_font(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	bool has_theme_font_size(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	bool has_theme_color(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+	bool has_theme_constant(const StringName &p_name, const StringName &p_theme_type = StringName()) const;
+
+	float get_theme_default_base_scale() const;
+	Ref<Font> get_theme_default_font() const;
+	int get_theme_default_font_size() const;
 
 	Rect2i get_parent_rect() const;
 	virtual DisplayServer::WindowID get_window_id() const override;

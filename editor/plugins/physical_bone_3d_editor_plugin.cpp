@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -43,6 +43,7 @@ void PhysicalBone3DEditor::_on_toggle_button_transform_joint(bool p_is_pressed) 
 void PhysicalBone3DEditor::_set_move_joint() {
 	if (selected) {
 		selected->_set_gizmo_move_joint(button_transform_joint->is_pressed());
+		Node3DEditor::get_singleton()->update_transform_gizmo();
 	}
 }
 
@@ -60,7 +61,7 @@ PhysicalBone3DEditor::PhysicalBone3DEditor(EditorNode *p_editor) :
 	spatial_editor_hb->add_child(button_transform_joint);
 
 	button_transform_joint->set_text(TTR("Move Joint"));
-	button_transform_joint->set_icon(Node3DEditor::get_singleton()->get_theme_icon("PhysicalBone3D", "EditorIcons"));
+	button_transform_joint->set_icon(Node3DEditor::get_singleton()->get_theme_icon(SNAME("PhysicalBone3D"), SNAME("EditorIcons")));
 	button_transform_joint->set_toggle_mode(true);
 	button_transform_joint->connect("toggled", callable_mp(this, &PhysicalBone3DEditor::_on_toggle_button_transform_joint));
 

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -35,12 +35,14 @@
 
 #include "audio_stream_mp3.h"
 
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 
-void AudioStreamPlaybackMP3::_mix_internal(AudioFrame *p_buffer, int p_frames) {
-	ERR_FAIL_COND(!active);
+int AudioStreamPlaybackMP3::_mix_internal(AudioFrame *p_buffer, int p_frames) {
+	ERR_FAIL_COND_V(!active, 0);
 
 	int todo = p_frames;
+
+	int frames_mixed_this_step = p_frames;
 
 	while (todo && active) {
 		mp3dec_frame_info_t frame_info;
@@ -60,6 +62,7 @@ void AudioStreamPlaybackMP3::_mix_internal(AudioFrame *p_buffer, int p_frames) {
 				seek(mp3_stream->loop_offset);
 				loops++;
 			} else {
+				frames_mixed_this_step = p_frames - todo;
 				//fill remainder with silence
 				for (int i = p_frames - todo; i < p_frames; i++) {
 					p_buffer[i] = AudioFrame(0, 0);
@@ -69,6 +72,7 @@ void AudioStreamPlaybackMP3::_mix_internal(AudioFrame *p_buffer, int p_frames) {
 			}
 		}
 	}
+	return frames_mixed_this_step;
 }
 
 float AudioStreamPlaybackMP3::get_stream_sampling_rate() {
@@ -99,15 +103,16 @@ float AudioStreamPlaybackMP3::get_playback_position() const {
 }
 
 void AudioStreamPlaybackMP3::seek(float p_time) {
-	if (!active)
+	if (!active) {
 		return;
+	}
 
 	if (p_time >= mp3_stream->get_length()) {
 		p_time = 0;
 	}
 
 	frames_mixed = uint32_t(mp3_stream->sample_rate * p_time);
-	mp3dec_ex_seek(mp3d, frames_mixed * mp3_stream->channels);
+	mp3dec_ex_seek(mp3d, (uint64_t)frames_mixed * mp3_stream->channels);
 }
 
 AudioStreamPlaybackMP3::~AudioStreamPlaybackMP3() {
@@ -120,9 +125,12 @@ AudioStreamPlaybackMP3::~AudioStreamPlaybackMP3() {
 Ref<AudioStreamPlayback> AudioStreamMP3::instance_playback() {
 	Ref<AudioStreamPlaybackMP3> mp3s;
 
-	ERR_FAIL_COND_V(data == nullptr, mp3s);
+	ERR_FAIL_COND_V_MSG(data == nullptr, mp3s,
+			"This AudioStreamMP3 does not have an audio file assigned "
+			"to it. AudioStreamMP3 should not be created from the "
+			"inspector or with `.new()`. Instead, load an audio file.");
 
-	mp3s.instance();
+	mp3s.instantiate();
 	mp3s->mp3_stream = Ref<AudioStreamMP3>(this);
 	mp3s->mp3d = (mp3dec_ex_t *)memalloc(sizeof(mp3dec_ex_t));
 
@@ -156,7 +164,8 @@ void AudioStreamMP3::set_data(const Vector<uint8_t> &p_data) {
 	const uint8_t *src_datar = p_data.ptr();
 
 	mp3dec_ex_t mp3d;
-	mp3dec_ex_open_buf(&mp3d, src_datar, src_data_len, MP3D_SEEK_TO_SAMPLE);
+	int err = mp3dec_ex_open_buf(&mp3d, src_datar, src_data_len, MP3D_SEEK_TO_SAMPLE);
+	ERR_FAIL_COND(err != 0);
 
 	channels = mp3d.info.channels;
 	sample_rate = mp3d.info.hz;
@@ -167,7 +176,7 @@ void AudioStreamMP3::set_data(const Vector<uint8_t> &p_data) {
 	clear_data();
 
 	data = memalloc(src_data_len);
-	copymem(data, src_datar, src_data_len);
+	memcpy(data, src_datar, src_data_len);
 	data_len = src_data_len;
 }
 
@@ -178,7 +187,7 @@ Vector<uint8_t> AudioStreamMP3::get_data() const {
 		vdata.resize(data_len);
 		{
 			uint8_t *w = vdata.ptrw();
-			copymem(w, data, data_len);
+			memcpy(w, data, data_len);
 		}
 	}
 
@@ -203,6 +212,10 @@ float AudioStreamMP3::get_loop_offset() const {
 
 float AudioStreamMP3::get_length() const {
 	return length;
+}
+
+bool AudioStreamMP3::is_monophonic() const {
+	return false;
 }
 
 void AudioStreamMP3::_bind_methods() {

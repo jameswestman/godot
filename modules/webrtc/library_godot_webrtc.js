@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -133,12 +133,12 @@ const GodotRTCDataChannel = {
 
 	godot_js_rtc_datachannel_is_ordered__sig: 'ii',
 	godot_js_rtc_datachannel_is_ordered: function (p_id) {
-		return IDHandler.get_prop(p_id, 'ordered', true);
+		return GodotRTCDataChannel.get_prop(p_id, 'ordered', true);
 	},
 
 	godot_js_rtc_datachannel_id_get__sig: 'ii',
 	godot_js_rtc_datachannel_id_get: function (p_id) {
-		return IDHandler.get_prop(p_id, 'id', 65535);
+		return GodotRTCDataChannel.get_prop(p_id, 'id', 65535);
 	},
 
 	godot_js_rtc_datachannel_max_packet_lifetime_get__sig: 'ii',
@@ -158,12 +158,17 @@ const GodotRTCDataChannel = {
 
 	godot_js_rtc_datachannel_max_retransmits_get__sig: 'ii',
 	godot_js_rtc_datachannel_max_retransmits_get: function (p_id) {
-		return IDHandler.get_prop(p_id, 'maxRetransmits', 65535);
+		return GodotRTCDataChannel.get_prop(p_id, 'maxRetransmits', 65535);
 	},
 
 	godot_js_rtc_datachannel_is_negotiated__sig: 'ii',
 	godot_js_rtc_datachannel_is_negotiated: function (p_id) {
-		return IDHandler.get_prop(p_id, 'negotiated', 65535);
+		return GodotRTCDataChannel.get_prop(p_id, 'negotiated', 65535);
+	},
+
+	godot_js_rtc_datachannel_get_buffered_amount__sig: 'ii',
+	godot_js_rtc_datachannel_get_buffered_amount: function (p_id) {
+		return GodotRTCDataChannel.get_prop(p_id, 'bufferedAmount', 0);
 	},
 
 	godot_js_rtc_datachannel_label_get__sig: 'ii',

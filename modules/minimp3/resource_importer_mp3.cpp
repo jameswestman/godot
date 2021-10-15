@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,8 +30,8 @@
 
 #include "resource_importer_mp3.h"
 
+#include "core/io/file_access.h"
 #include "core/io/resource_saver.h"
-#include "core/os/file_access.h"
 #include "scene/resources/texture.h"
 
 String ResourceImporterMP3::get_importer_name() const {
@@ -79,7 +79,7 @@ Error ResourceImporterMP3::import(const String &p_source_file, const String &p_s
 
 	ERR_FAIL_COND_V(!f, ERR_CANT_OPEN);
 
-	size_t len = f->get_len();
+	uint64_t len = f->get_length();
 
 	Vector<uint8_t> data;
 	data.resize(len);
@@ -90,7 +90,7 @@ Error ResourceImporterMP3::import(const String &p_source_file, const String &p_s
 	memdelete(f);
 
 	Ref<AudioStreamMP3> mp3_stream;
-	mp3_stream.instance();
+	mp3_stream.instantiate();
 
 	mp3_stream->set_data(data);
 	ERR_FAIL_COND_V(!mp3_stream->get_data().size(), ERR_FILE_CORRUPT);

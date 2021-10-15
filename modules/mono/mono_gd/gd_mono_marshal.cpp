@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -104,12 +104,12 @@ Variant::Type managed_to_variant_type(const ManagedType &p_type, bool *r_nil_is_
 				return Variant::BASIS;
 			}
 
-			if (vtclass == CACHED_CLASS(Quat)) {
-				return Variant::QUAT;
+			if (vtclass == CACHED_CLASS(Quaternion)) {
+				return Variant::QUATERNION;
 			}
 
-			if (vtclass == CACHED_CLASS(Transform)) {
-				return Variant::TRANSFORM;
+			if (vtclass == CACHED_CLASS(Transform3D)) {
+				return Variant::TRANSFORM3D;
 			}
 
 			if (vtclass == CACHED_CLASS(AABB)) {
@@ -508,9 +508,9 @@ MonoObject *variant_to_mono_object(const Variant &p_var) {
 			GDMonoMarshal::M_Plane from = MARSHALLED_OUT(Plane, p_var.operator ::Plane());
 			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Plane), &from);
 		}
-		case Variant::QUAT: {
-			GDMonoMarshal::M_Quat from = MARSHALLED_OUT(Quat, p_var.operator ::Quat());
-			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Quat), &from);
+		case Variant::QUATERNION: {
+			GDMonoMarshal::M_Quaternion from = MARSHALLED_OUT(Quaternion, p_var.operator ::Quaternion());
+			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Quaternion), &from);
 		}
 		case Variant::AABB: {
 			GDMonoMarshal::M_AABB from = MARSHALLED_OUT(AABB, p_var.operator ::AABB());
@@ -520,9 +520,9 @@ MonoObject *variant_to_mono_object(const Variant &p_var) {
 			GDMonoMarshal::M_Basis from = MARSHALLED_OUT(Basis, p_var.operator ::Basis());
 			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Basis), &from);
 		}
-		case Variant::TRANSFORM: {
-			GDMonoMarshal::M_Transform from = MARSHALLED_OUT(Transform, p_var.operator ::Transform());
-			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Transform), &from);
+		case Variant::TRANSFORM3D: {
+			GDMonoMarshal::M_Transform3D from = MARSHALLED_OUT(Transform3D, p_var.operator ::Transform3D());
+			return mono_value_box(mono_domain_get(), CACHED_CLASS_RAW(Transform3D), &from);
 		}
 		case Variant::COLOR: {
 			GDMonoMarshal::M_Color from = MARSHALLED_OUT(Color, p_var.operator ::Color());
@@ -619,8 +619,8 @@ size_t variant_get_managed_unboxed_size(const ManagedType &p_type) {
 			RETURN_CHECK_FOR_STRUCT(Vector3);
 			RETURN_CHECK_FOR_STRUCT(Vector3i);
 			RETURN_CHECK_FOR_STRUCT(Basis);
-			RETURN_CHECK_FOR_STRUCT(Quat);
-			RETURN_CHECK_FOR_STRUCT(Transform);
+			RETURN_CHECK_FOR_STRUCT(Quaternion);
+			RETURN_CHECK_FOR_STRUCT(Transform3D);
 			RETURN_CHECK_FOR_STRUCT(AABB);
 			RETURN_CHECK_FOR_STRUCT(Color);
 			RETURN_CHECK_FOR_STRUCT(Plane);
@@ -724,8 +724,8 @@ void *variant_to_managed_unboxed(const Variant &p_var, const ManagedType &p_type
 			RETURN_CHECK_FOR_STRUCT(Vector3);
 			RETURN_CHECK_FOR_STRUCT(Vector3i);
 			RETURN_CHECK_FOR_STRUCT(Basis);
-			RETURN_CHECK_FOR_STRUCT(Quat);
-			RETURN_CHECK_FOR_STRUCT(Transform);
+			RETURN_CHECK_FOR_STRUCT(Quaternion);
+			RETURN_CHECK_FOR_STRUCT(Transform3D);
 			RETURN_CHECK_FOR_STRUCT(AABB);
 			RETURN_CHECK_FOR_STRUCT(Color);
 			RETURN_CHECK_FOR_STRUCT(Plane);
@@ -880,8 +880,8 @@ MonoObject *variant_to_mono_object(const Variant &p_var, const ManagedType &p_ty
 			RETURN_CHECK_FOR_STRUCT(Vector3);
 			RETURN_CHECK_FOR_STRUCT(Vector3i);
 			RETURN_CHECK_FOR_STRUCT(Basis);
-			RETURN_CHECK_FOR_STRUCT(Quat);
-			RETURN_CHECK_FOR_STRUCT(Transform);
+			RETURN_CHECK_FOR_STRUCT(Quaternion);
+			RETURN_CHECK_FOR_STRUCT(Transform3D);
 			RETURN_CHECK_FOR_STRUCT(AABB);
 			RETURN_CHECK_FOR_STRUCT(Color);
 			RETURN_CHECK_FOR_STRUCT(Plane);
@@ -1036,12 +1036,12 @@ Variant mono_object_to_variant_impl(MonoObject *p_obj, const ManagedType &p_type
 				return MARSHALLED_IN(Basis, unbox_addr<GDMonoMarshal::M_Basis>(p_obj));
 			}
 
-			if (vtclass == CACHED_CLASS(Quat)) {
-				return MARSHALLED_IN(Quat, unbox_addr<GDMonoMarshal::M_Quat>(p_obj));
+			if (vtclass == CACHED_CLASS(Quaternion)) {
+				return MARSHALLED_IN(Quaternion, unbox_addr<GDMonoMarshal::M_Quaternion>(p_obj));
 			}
 
-			if (vtclass == CACHED_CLASS(Transform)) {
-				return MARSHALLED_IN(Transform, unbox_addr<GDMonoMarshal::M_Transform>(p_obj));
+			if (vtclass == CACHED_CLASS(Transform3D)) {
+				return MARSHALLED_IN(Transform3D, unbox_addr<GDMonoMarshal::M_Transform3D>(p_obj));
 			}
 
 			if (vtclass == CACHED_CLASS(AABB)) {
@@ -1136,8 +1136,8 @@ Variant mono_object_to_variant_impl(MonoObject *p_obj, const ManagedType &p_type
 			if (CACHED_CLASS(GodotObject)->is_assignable_from(type_class)) {
 				Object *ptr = unbox<Object *>(CACHED_FIELD(GodotObject, ptr)->get_value(p_obj));
 				if (ptr != nullptr) {
-					Reference *ref = Object::cast_to<Reference>(ptr);
-					return ref ? Variant(Ref<Reference>(ref)) : Variant(ptr);
+					RefCounted *rc = Object::cast_to<RefCounted>(ptr);
+					return rc ? Variant(Ref<RefCounted>(rc)) : Variant(ptr);
 				}
 				return Variant();
 			}
@@ -1204,7 +1204,7 @@ Variant mono_object_to_variant_impl(MonoObject *p_obj, const ManagedType &p_type
 			if (GDMonoUtils::Marshal::type_is_system_generic_list(reftype)) {
 				MonoReflectionType *elem_reftype = nullptr;
 				GDMonoUtils::Marshal::array_get_element_type(reftype, &elem_reftype);
-				return system_generic_list_to_Array(p_obj, p_type.type_class, elem_reftype);
+				return system_generic_list_to_Array_variant(p_obj, p_type.type_class, elem_reftype);
 			}
 		} break;
 	}
@@ -1333,15 +1333,22 @@ MonoObject *Array_to_system_generic_list(const Array &p_array, GDMonoClass *p_cl
 	return mono_object;
 }
 
-Array system_generic_list_to_Array(MonoObject *p_obj, GDMonoClass *p_class, [[maybe_unused]] MonoReflectionType *p_elem_reftype) {
+Variant system_generic_list_to_Array_variant(MonoObject *p_obj, GDMonoClass *p_class, [[maybe_unused]] MonoReflectionType *p_elem_reftype) {
 	GDMonoMethod *to_array = p_class->get_method("ToArray", 0);
 	CRASH_COND(to_array == nullptr);
 
 	MonoException *exc = nullptr;
-	MonoArray *mono_array = (MonoArray *)to_array->invoke_raw(p_obj, nullptr, &exc);
+	MonoObject *array = to_array->invoke_raw(p_obj, nullptr, &exc);
 	UNHANDLED_EXCEPTION(exc);
 
-	return mono_array_to_Array(mono_array);
+	ERR_FAIL_NULL_V(array, Variant());
+
+	ManagedType type = ManagedType::from_class(mono_object_get_class(array));
+
+	bool result_is_array = type.type_encoding != MONO_TYPE_SZARRAY && type.type_encoding != MONO_TYPE_ARRAY;
+	ERR_FAIL_COND_V(result_is_array, Variant());
+
+	return mono_object_to_variant(array, type);
 }
 
 MonoArray *Array_to_mono_array(const Array &p_array) {
@@ -1677,9 +1684,11 @@ Callable managed_to_callable(const M_Callable &p_managed_callable) {
 		return Callable(managed_callable);
 	} else {
 		Object *target = p_managed_callable.target ?
-								 unbox<Object *>(CACHED_FIELD(GodotObject, ptr)->get_value(p_managed_callable.target)) :
-								 nullptr;
-		StringName *method_ptr = unbox<StringName *>(CACHED_FIELD(StringName, ptr)->get_value(p_managed_callable.method_string_name));
+								   unbox<Object *>(CACHED_FIELD(GodotObject, ptr)->get_value(p_managed_callable.target)) :
+								   nullptr;
+		StringName *method_ptr = p_managed_callable.method_string_name ?
+										   unbox<StringName *>(CACHED_FIELD(StringName, ptr)->get_value(p_managed_callable.method_string_name)) :
+										   nullptr;
 		StringName method = method_ptr ? *method_ptr : StringName();
 		return Callable(target, method);
 	}
@@ -1723,9 +1732,11 @@ M_Callable callable_to_managed(const Callable &p_callable) {
 
 Signal managed_to_signal_info(const M_SignalInfo &p_managed_signal) {
 	Object *owner = p_managed_signal.owner ?
-							unbox<Object *>(CACHED_FIELD(GodotObject, ptr)->get_value(p_managed_signal.owner)) :
-							nullptr;
-	StringName *name_ptr = unbox<StringName *>(CACHED_FIELD(StringName, ptr)->get_value(p_managed_signal.name_string_name));
+							  unbox<Object *>(CACHED_FIELD(GodotObject, ptr)->get_value(p_managed_signal.owner)) :
+							  nullptr;
+	StringName *name_ptr = p_managed_signal.name_string_name ?
+									 unbox<StringName *>(CACHED_FIELD(StringName, ptr)->get_value(p_managed_signal.name_string_name)) :
+									 nullptr;
 	StringName name = name_ptr ? *name_ptr : StringName();
 	return Signal(owner, name);
 }

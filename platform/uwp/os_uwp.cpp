@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -28,25 +28,20 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-// Must include Winsock before windows.h (included by os_uwp.h)
-#include "drivers/unix/net_socket_posix.h"
-
 #include "os_uwp.h"
 
 #include "core/config/project_settings.h"
 #include "core/io/marshalls.h"
 #include "drivers/unix/ip_unix.h"
+#include "drivers/unix/net_socket_posix.h"
 #include "drivers/windows/dir_access_windows.h"
 #include "drivers/windows/file_access_windows.h"
 #include "drivers/windows/mutex_windows.h"
-#include "drivers/windows/rw_lock_windows.h"
 #include "drivers/windows/semaphore_windows.h"
 #include "main/main.h"
 #include "platform/windows/windows_terminal_logger.h"
 #include "servers/audio_server.h"
 #include "servers/rendering/rendering_server_default.h"
-#include "servers/rendering/rendering_server_wrap_mt.h"
-#include "thread_uwp.h"
 
 #include <ppltasks.h>
 #include <wrl.h>
@@ -64,6 +59,8 @@ using namespace Windows::Devices::Input;
 using namespace Windows::Devices::Sensors;
 using namespace Windows::ApplicationModel::DataTransfer;
 using namespace concurrency;
+
+static const float earth_gravity = 9.80665;
 
 int OS_UWP::get_video_driver_count() const {
 	return 2;
@@ -127,12 +124,7 @@ void OS_UWP::set_keep_screen_on(bool p_enabled) {
 }
 
 void OS_UWP::initialize_core() {
-	last_button_state = 0;
-
 	//RedirectIOToConsole();
-
-	ThreadUWP::make_default();
-	RWLockWindows::make_default();
 
 	FileAccess::make_default<FileAccessWindows>(FileAccess::ACCESS_RESOURCES);
 	FileAccess::make_default<FileAccessWindows>(FileAccess::ACCESS_USERDATA);
@@ -151,14 +143,10 @@ void OS_UWP::initialize_core() {
 	ticks_start = 0;
 	ticks_start = get_ticks_usec();
 
-	IP_Unix::make_default();
+	IPUnix::make_default();
 
 	cursor_shape = CURSOR_ARROW;
 }
-
-bool OS_UWP::can_draw() const {
-	return !minimized;
-};
 
 void OS_UWP::set_window(Windows::UI::Core::CoreWindow ^ p_window) {
 	window = p_window;
@@ -382,9 +370,9 @@ void OS_UWP::ManagedType::on_accelerometer_reading_changed(Accelerometer ^ sende
 	AccelerometerReading ^ reading = args->Reading;
 
 	os->input->set_accelerometer(Vector3(
-			reading->AccelerationX,
-			reading->AccelerationY,
-			reading->AccelerationZ));
+			reading->AccelerationX * earth_gravity,
+			reading->AccelerationY * earth_gravity,
+			reading->AccelerationZ * earth_gravity));
 }
 
 void OS_UWP::ManagedType::on_magnetometer_reading_changed(Magnetometer ^ sender, MagnetometerReadingChangedEventArgs ^ args) {
@@ -408,14 +396,12 @@ void OS_UWP::ManagedType::on_gyroscope_reading_changed(Gyrometer ^ sender, Gyrom
 void OS_UWP::set_mouse_mode(MouseMode p_mode) {
 	if (p_mode == MouseMode::MOUSE_MODE_CAPTURED) {
 		CoreWindow::GetForCurrentThread()->SetPointerCapture();
-
 	} else {
 		CoreWindow::GetForCurrentThread()->ReleasePointerCapture();
 	}
 
-	if (p_mode == MouseMode::MOUSE_MODE_CAPTURED || p_mode == MouseMode::MOUSE_MODE_HIDDEN) {
+	if (p_mode == MouseMode::MOUSE_MODE_HIDDEN || p_mode == MouseMode::MOUSE_MODE_CAPTURED || p_mode == MouseMode::MOUSE_MODE_CONFINED_HIDDEN) {
 		CoreWindow::GetForCurrentThread()->PointerCursor = nullptr;
-
 	} else {
 		CoreWindow::GetForCurrentThread()->PointerCursor = ref new CoreCursor(CoreCursorType::Arrow, 0);
 	}
@@ -433,7 +419,7 @@ Point2 OS_UWP::get_mouse_position() const {
 	return Point2(old_x, old_y);
 }
 
-int OS_UWP::get_mouse_button_state() const {
+MouseButton OS_UWP::get_mouse_button_state() const {
 	return last_button_state;
 }
 
@@ -572,13 +558,13 @@ void OS_UWP::process_key_events() {
 		KeyEvent &kev = key_event_buffer[i];
 
 		Ref<InputEventKey> key_event;
-		key_event.instance();
-		key_event->set_alt(kev.alt);
-		key_event->set_shift(kev.shift);
-		key_event->set_control(kev.control);
+		key_event.instantiate();
+		key_event->set_alt_pressed(kev.alt);
+		key_event->set_shift_pressed(kev.shift);
+		key_event->set_ctrl_pressed(kev.control);
 		key_event->set_echo(kev.echo);
 		key_event->set_keycode(kev.keycode);
-		key_event->set_physical_keycode(kev.physical_keycode);
+		key_event->set_physical_keycode((Key)kev.physical_keycode);
 		key_event->set_unicode(kev.unicode);
 		key_event->set_pressed(kev.pressed);
 
@@ -642,7 +628,11 @@ void OS_UWP::set_custom_mouse_cursor(const RES &p_cursor, CursorShape p_shape, c
 	// TODO
 }
 
-Error OS_UWP::execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id, String *r_pipe, int *r_exitcode, bool read_stderr, Mutex *p_pipe_mutex) {
+Error OS_UWP::execute(const String &p_path, const List<String> &p_arguments, String *r_pipe, int *r_exitcode, bool read_stderr, Mutex *p_pipe_mutex) {
+	return FAILED;
+};
+
+Error OS_UWP::create_process(const String &p_path, const List<String> &p_arguments, ProcessID *r_child_id) {
 	return FAILED;
 };
 

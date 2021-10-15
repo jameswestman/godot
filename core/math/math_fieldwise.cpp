@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -88,8 +88,8 @@ Variant fieldwise_assign(const Variant &p_target, const Variant &p_source, const
 			return target;
 		}
 
-		case Variant::QUAT: {
-			SETUP_TYPE(Quat)
+		case Variant::QUATERNION: {
+			SETUP_TYPE(Quaternion)
 
 			/**/ TRY_TRANSFER_FIELD("x", x)
 			else TRY_TRANSFER_FIELD("y", y)
@@ -141,8 +141,8 @@ Variant fieldwise_assign(const Variant &p_target, const Variant &p_source, const
 			return target;
 		}
 
-		case Variant::TRANSFORM: {
-			SETUP_TYPE(Transform)
+		case Variant::TRANSFORM3D: {
+			SETUP_TYPE(Transform3D)
 
 			/**/ TRY_TRANSFER_FIELD("xx", basis.elements[0][0])
 			else TRY_TRANSFER_FIELD("xy", basis.elements[0][1])

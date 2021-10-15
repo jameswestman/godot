@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -45,7 +45,8 @@ enum {
 	SPKEY = (1 << 24)
 };
 
-enum KeyList {
+enum Key {
+	KEY_NONE = 0,
 	/* CURSOR/FUNCTION/BROWSER/MULTIMEDIA/MISC KEYS */
 	KEY_ESCAPE = SPKEY | 0x01,
 	KEY_TAB = SPKEY | 0x02,
@@ -68,7 +69,7 @@ enum KeyList {
 	KEY_PAGEUP = SPKEY | 0x13,
 	KEY_PAGEDOWN = SPKEY | 0x14,
 	KEY_SHIFT = SPKEY | 0x15,
-	KEY_CONTROL = SPKEY | 0x16,
+	KEY_CTRL = SPKEY | 0x16,
 	KEY_META = SPKEY | 0x17,
 	KEY_ALT = SPKEY | 0x18,
 	KEY_CAPSLOCK = SPKEY | 0x19,
@@ -313,6 +314,52 @@ enum KeyModifierMask {
 	KEY_MASK_GROUP_SWITCH = (1 << 30)
 	// bit 31 can't be used because variant uses regular 32 bits int as datatype
 };
+
+// To avoid having unnecessary operators, only define the ones that are needed.
+
+inline Key operator-(uint32_t a, Key b) {
+	return (Key)(a - (uint32_t)b);
+}
+
+inline Key &operator-=(Key &a, int b) {
+	return (Key &)((int &)a -= b);
+}
+
+inline Key operator+(Key a, Key b) {
+	return (Key)((int)a - (int)b);
+}
+
+inline Key &operator|=(Key &a, Key b) {
+	return (Key &)((int &)a |= (int)b);
+}
+
+inline Key &operator|=(Key &a, KeyModifierMask b) {
+	return (Key &)((int &)a |= (int)b);
+}
+
+inline Key operator|(Key a, KeyModifierMask b) {
+	return (Key)((int)a | (int)b);
+}
+
+inline Key operator&(Key a, KeyModifierMask b) {
+	return (Key)((int)a & (int)b);
+}
+
+inline Key operator+(KeyModifierMask a, Key b) {
+	return (Key)((int)a + (int)b);
+}
+
+inline Key operator|(KeyModifierMask a, Key b) {
+	return (Key)((int)a | (int)b);
+}
+
+inline KeyModifierMask operator+(KeyModifierMask a, KeyModifierMask b) {
+	return (KeyModifierMask)((int)a + (int)b);
+}
+
+inline KeyModifierMask operator|(KeyModifierMask a, KeyModifierMask b) {
+	return (KeyModifierMask)((int)a | (int)b);
+}
 
 String keycode_get_string(uint32_t p_code);
 bool keycode_has_unicode(uint32_t p_keycode);

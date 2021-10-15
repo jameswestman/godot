@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,7 +32,6 @@
 #define LOCAL_VECTOR_H
 
 #include "core/error/error_macros.h"
-#include "core/os/copymem.h"
 #include "core/os/memory.h"
 #include "core/templates/sort_array.h"
 #include "core/templates/vector.h"
@@ -82,6 +81,19 @@ public:
 		}
 	}
 
+	/// Removes the item copying the last value into the position of the one to
+	/// remove. It's generally faster than `remove`.
+	void remove_unordered(U p_index) {
+		ERR_FAIL_INDEX(p_index, count);
+		count--;
+		if (count > p_index) {
+			data[p_index] = data[count];
+		}
+		if (!__has_trivial_destructor(T) && !force_trivial) {
+			data[count].~T();
+		}
+	}
+
 	void erase(const T &p_val) {
 		int64_t idx = find(p_val);
 		if (idx >= 0) {
@@ -104,7 +116,8 @@ public:
 			capacity = 0;
 		}
 	}
-	_FORCE_INLINE_ bool empty() const { return count == 0; }
+	_FORCE_INLINE_ bool is_empty() const { return count == 0; }
+	_FORCE_INLINE_ U get_capacity() const { return capacity; }
 	_FORCE_INLINE_ void reserve(U p_size) {
 		p_size = nearest_power_of_2_templated(p_size);
 		if (p_size > capacity) {
@@ -157,7 +170,7 @@ public:
 			push_back(p_val);
 		} else {
 			resize(count + 1);
-			for (U i = count; i > p_pos; i--) {
+			for (U i = count - 1; i > p_pos; i--) {
 				data[i] = data[i - 1];
 			}
 			data[p_pos] = p_val;
@@ -165,7 +178,7 @@ public:
 	}
 
 	int64_t find(const T &p_val, U p_from = 0) const {
-		for (U i = 0; i < count; i++) {
+		for (U i = p_from; i < count; i++) {
 			if (data[i] == p_val) {
 				return int64_t(i);
 			}
@@ -202,7 +215,7 @@ public:
 		Vector<T> ret;
 		ret.resize(size());
 		T *w = ret.ptrw();
-		copymem(w, data, sizeof(T) * count);
+		memcpy(w, data, sizeof(T) * count);
 		return ret;
 	}
 
@@ -210,7 +223,7 @@ public:
 		Vector<uint8_t> ret;
 		ret.resize(count * sizeof(T));
 		uint8_t *w = ret.ptrw();
-		copymem(w, data, sizeof(T) * count);
+		memcpy(w, data, sizeof(T) * count);
 		return ret;
 	}
 

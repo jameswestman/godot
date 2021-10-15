@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -80,8 +80,8 @@ struct CachedData {
 	GDMonoClass *class_Vector3;
 	GDMonoClass *class_Vector3i;
 	GDMonoClass *class_Basis;
-	GDMonoClass *class_Quat;
-	GDMonoClass *class_Transform;
+	GDMonoClass *class_Quaternion;
+	GDMonoClass *class_Transform3D;
 	GDMonoClass *class_AABB;
 	GDMonoClass *class_Color;
 	GDMonoClass *class_Plane;
@@ -111,14 +111,15 @@ struct CachedData {
 	GDMonoField *field_ExportAttribute_hintString;
 	GDMonoClass *class_SignalAttribute;
 	GDMonoClass *class_ToolAttribute;
-	GDMonoClass *class_RemoteAttribute;
-	GDMonoClass *class_MasterAttribute;
-	GDMonoClass *class_PuppetAttribute;
-	GDMonoClass *class_RemoteSyncAttribute;
-	GDMonoClass *class_MasterSyncAttribute;
-	GDMonoClass *class_PuppetSyncAttribute;
+	GDMonoClass *class_AnyPeerAttribute;
+	GDMonoClass *class_AuthorityAttribute;
 	GDMonoClass *class_GodotMethodAttribute;
 	GDMonoField *field_GodotMethodAttribute_methodName;
+	GDMonoClass *class_ScriptPathAttribute;
+	GDMonoField *field_ScriptPathAttribute_path;
+	GDMonoClass *class_AssemblyHasScriptsAttribute;
+	GDMonoField *field_AssemblyHasScriptsAttribute_requiresLookup;
+	GDMonoField *field_AssemblyHasScriptsAttribute_scriptTypes;
 
 	GDMonoField *field_GodotObject_ptr;
 	GDMonoField *field_StringName_ptr;

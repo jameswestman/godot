@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -39,7 +39,7 @@ POTGenerator *POTGenerator::singleton = nullptr;
 
 #ifdef DEBUG_POT
 void POTGenerator::_print_all_translation_strings() {
-	for (auto E = all_translation_strings.front(); E; E = E.next()) {
+	for (OrderedHashMap<String, Vector<POTGenerator::MsgidData>>::Element E = all_translation_strings.front(); E; E = E.next()) {
 		Vector<MsgidData> v_md = all_translation_strings[E.key()];
 		for (int i = 0; i < v_md.size(); i++) {
 			print_line("++++++");
@@ -55,7 +55,7 @@ void POTGenerator::_print_all_translation_strings() {
 #endif
 
 void POTGenerator::generate_pot(const String &p_file) {
-	if (!ProjectSettings::get_singleton()->has_setting("locale/translations_pot_files")) {
+	if (!ProjectSettings::get_singleton()->has_setting("internationalization/locale/translations_pot_files")) {
 		WARN_PRINT("No files selected for POT generation.");
 		return;
 	}
@@ -63,7 +63,7 @@ void POTGenerator::generate_pot(const String &p_file) {
 	// Clear all_translation_strings of the previous round.
 	all_translation_strings.clear();
 
-	Vector<String> files = ProjectSettings::get_singleton()->get("locale/translations_pot_files");
+	Vector<String> files = ProjectSettings::get_singleton()->get("internationalization/locale/translations_pot_files");
 
 	// Collect all translatable strings according to files order in "POT Generation" setting.
 	for (int i = 0; i < files.size(); i++) {
@@ -100,14 +100,13 @@ void POTGenerator::_write_to_pot(const String &p_file) {
 	}
 
 	String project_name = ProjectSettings::get_singleton()->get("application/config/name");
-	Vector<String> files = ProjectSettings::get_singleton()->get("locale/translations_pot_files");
+	Vector<String> files = ProjectSettings::get_singleton()->get("internationalization/locale/translations_pot_files");
 	String extracted_files = "";
 	for (int i = 0; i < files.size(); i++) {
 		extracted_files += "# " + files[i] + "\n";
 	}
 	const String header =
 			"# LANGUAGE translation for " + project_name + " for the following files:\n" + extracted_files +
-			"#\n"
 			"#\n"
 			"# FIRST AUTHOR < EMAIL @ADDRESS>, YEAR.\n"
 			"#\n"
@@ -116,8 +115,9 @@ void POTGenerator::_write_to_pot(const String &p_file) {
 			"msgstr \"\"\n"
 			"\"Project-Id-Version: " +
 			project_name + "\\n\"\n"
+						   "\"MIME-Version: 1.0\\n\"\n"
 						   "\"Content-Type: text/plain; charset=UTF-8\\n\"\n"
-						   "\"Content-Transfer-Encoding: 8-bit\\n\"\n\n";
+						   "\"Content-Transfer-Encoding: 8-bit\\n\"\n";
 
 	file->store_string(header);
 
@@ -129,26 +129,29 @@ void POTGenerator::_write_to_pot(const String &p_file) {
 			String plural = v_msgid_data[i].plural;
 			const Set<String> &locations = v_msgid_data[i].locations;
 
+			// Put the blank line at the start, to avoid a double at the end when closing the file.
+			file->store_line("");
+
 			// Write file locations.
 			for (Set<String>::Element *E = locations.front(); E; E = E->next()) {
 				file->store_line("#: " + E->get().trim_prefix("res://"));
 			}
 
 			// Write context.
-			if (!context.empty()) {
+			if (!context.is_empty()) {
 				file->store_line("msgctxt \"" + context + "\"");
 			}
 
 			// Write msgid.
 			_write_msgid(file, msgid, false);
 
-			// Write msgid_plural
-			if (!plural.empty()) {
+			// Write msgid_plural.
+			if (!plural.is_empty()) {
 				_write_msgid(file, plural, true);
 				file->store_line("msgstr[0] \"\"");
-				file->store_line("msgstr[1] \"\"\n");
+				file->store_line("msgstr[1] \"\"");
 			} else {
-				file->store_line("msgstr \"\"\n");
+				file->store_line("msgstr \"\"");
 			}
 		}
 	}
@@ -185,7 +188,7 @@ void POTGenerator::_add_new_msgid(const String &p_msgid, const String &p_context
 		Vector<MsgidData> &v_mdata = all_translation_strings[p_msgid];
 		for (int i = 0; i < v_mdata.size(); i++) {
 			if (v_mdata[i].ctx == p_context) {
-				if (!v_mdata[i].plural.empty() && !p_plural.empty() && v_mdata[i].plural != p_plural) {
+				if (!v_mdata[i].plural.is_empty() && !p_plural.is_empty() && v_mdata[i].plural != p_plural) {
 					WARN_PRINT("Redefinition of plural message (msgid_plural), under the same message (msgid) and context (msgctxt)");
 				}
 				v_mdata.write[i].locations.insert(p_location);

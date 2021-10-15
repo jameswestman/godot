@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -146,14 +146,14 @@ void GDMonoField::set_value_from_variant(MonoObject *p_object, const Variant &p_
 				break;
 			}
 
-			if (tclass == CACHED_CLASS(Quat)) {
-				GDMonoMarshal::M_Quat from = MARSHALLED_OUT(Quat, p_value.operator ::Quat());
+			if (tclass == CACHED_CLASS(Quaternion)) {
+				GDMonoMarshal::M_Quaternion from = MARSHALLED_OUT(Quaternion, p_value.operator ::Quaternion());
 				mono_field_set_value(p_object, mono_field, &from);
 				break;
 			}
 
-			if (tclass == CACHED_CLASS(Transform)) {
-				GDMonoMarshal::M_Transform from = MARSHALLED_OUT(Transform, p_value.operator ::Transform());
+			if (tclass == CACHED_CLASS(Transform3D)) {
+				GDMonoMarshal::M_Transform3D from = MARSHALLED_OUT(Transform3D, p_value.operator ::Transform3D());
 				mono_field_set_value(p_object, mono_field, &from);
 				break;
 			}
@@ -336,8 +336,8 @@ void GDMonoField::set_value_from_variant(MonoObject *p_object, const Variant &p_
 					GDMonoMarshal::M_Plane from = MARSHALLED_OUT(Plane, p_value.operator ::Plane());
 					mono_field_set_value(p_object, mono_field, &from);
 				} break;
-				case Variant::QUAT: {
-					GDMonoMarshal::M_Quat from = MARSHALLED_OUT(Quat, p_value.operator ::Quat());
+				case Variant::QUATERNION: {
+					GDMonoMarshal::M_Quaternion from = MARSHALLED_OUT(Quaternion, p_value.operator ::Quaternion());
 					mono_field_set_value(p_object, mono_field, &from);
 				} break;
 				case Variant::AABB: {
@@ -348,8 +348,8 @@ void GDMonoField::set_value_from_variant(MonoObject *p_object, const Variant &p_
 					GDMonoMarshal::M_Basis from = MARSHALLED_OUT(Basis, p_value.operator ::Basis());
 					mono_field_set_value(p_object, mono_field, &from);
 				} break;
-				case Variant::TRANSFORM: {
-					GDMonoMarshal::M_Transform from = MARSHALLED_OUT(Transform, p_value.operator ::Transform());
+				case Variant::TRANSFORM3D: {
+					GDMonoMarshal::M_Transform3D from = MARSHALLED_OUT(Transform3D, p_value.operator ::Transform3D());
 					mono_field_set_value(p_object, mono_field, &from);
 				} break;
 				case Variant::COLOR: {
@@ -509,7 +509,7 @@ IMonoClassMember::Visibility GDMonoField::get_visibility() {
 GDMonoField::GDMonoField(MonoClassField *p_mono_field, GDMonoClass *p_owner) {
 	owner = p_owner;
 	mono_field = p_mono_field;
-	name = mono_field_get_name(mono_field);
+	name = String::utf8(mono_field_get_name(mono_field));
 	MonoType *field_type = mono_field_get_type(mono_field);
 	type.type_encoding = mono_type_get_type(field_type);
 	MonoClass *field_type_class = mono_class_from_mono_type(field_type);

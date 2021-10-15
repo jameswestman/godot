@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -88,13 +88,15 @@
 	self.text = existingString;
 	self.previousText = existingString;
 
+	NSInteger safeStartIndex = MAX(start, 0);
+
 	NSRange textRange;
 
 	// Either a simple cursor or a selection.
 	if (end > 0) {
-		textRange = NSMakeRange(start, end - start);
+		textRange = NSMakeRange(safeStartIndex, end - start);
 	} else {
-		textRange = NSMakeRange(start, 0);
+		textRange = NSMakeRange(safeStartIndex, 0);
 	}
 
 	self.selectedRange = textRange;
@@ -136,8 +138,8 @@
 				break;
 		}
 
-		DisplayServerIPhone::get_singleton()->key(character, true);
-		DisplayServerIPhone::get_singleton()->key(character, false);
+		DisplayServerIPhone::get_singleton()->key((Key)character, true);
+		DisplayServerIPhone::get_singleton()->key((Key)character, false);
 	}
 }
 

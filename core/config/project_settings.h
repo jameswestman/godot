@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -33,6 +33,7 @@
 
 #include "core/object/class_db.h"
 #include "core/os/thread_safe.h"
+#include "core/templates/ordered_hash_map.h"
 #include "core/templates/set.h"
 
 class ProjectSettings : public Object {
@@ -41,7 +42,6 @@ class ProjectSettings : public Object {
 
 public:
 	typedef Map<String, Variant> CustomMap;
-	static const String IMPORTED_FILES_PATH;
 
 	enum {
 		//properties that are not for built in values begin from this value, so builtin ones are displayed first
@@ -58,6 +58,7 @@ protected:
 	struct VariantContainer {
 		int order = 0;
 		bool persist = false;
+		bool basic = false;
 		Variant variant;
 		Variant initial;
 		bool hide_from_editor = false;
@@ -78,6 +79,8 @@ protected:
 
 	int last_order = NO_BUILTIN_ORDER_BASE;
 	int last_builtin_order = 0;
+	uint64_t last_save_time = 0;
+
 	Map<StringName, VariantContainer> props;
 	String resource_path;
 	Map<StringName, PropertyInfo> custom_prop_info;
@@ -88,7 +91,9 @@ protected:
 	Set<String> custom_features;
 	Map<StringName, StringName> feature_overrides;
 
-	Map<StringName, AutoloadInfo> autoloads;
+	OrderedHashMap<StringName, AutoloadInfo> autoloads;
+
+	String project_data_dir_name;
 
 	bool _set(const StringName &p_name, const Variant &p_value);
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -113,6 +118,8 @@ protected:
 
 	Error _setup(const String &p_path, const String &p_main_pack, bool p_upwards = false);
 
+	void _add_builtin_input_map();
+
 protected:
 	static void _bind_methods();
 
@@ -127,6 +134,7 @@ public:
 	String globalize_path(const String &p_path) const;
 
 	void set_initial_value(const String &p_name, const Variant &p_value);
+	void set_as_basic(const String &p_name, bool p_basic);
 	void set_restart_if_changed(const String &p_name, bool p_restart);
 	void set_ignore_value_in_docs(const String &p_name, bool p_ignore);
 	bool get_ignore_value_in_docs(const String &p_name) const;
@@ -134,7 +142,10 @@ public:
 	bool property_can_revert(const String &p_name);
 	Variant property_get_revert(const String &p_name);
 
+	String get_project_data_dir_name() const;
+	String get_project_data_path() const;
 	String get_resource_path() const;
+	String get_imported_files_path() const;
 
 	static ProjectSettings *get_singleton();
 
@@ -150,6 +161,7 @@ public:
 	Error save();
 	void set_custom_property_info(const String &p_prop, const PropertyInfo &p_info);
 	const Map<StringName, PropertyInfo> &get_custom_property_info() const;
+	uint64_t get_last_saved_time() { return last_save_time; }
 
 	Vector<String> get_optimizer_presets() const;
 
@@ -161,7 +173,7 @@ public:
 
 	bool has_custom_feature(const String &p_feature) const;
 
-	Map<StringName, AutoloadInfo> get_autoload_list() const;
+	OrderedHashMap<StringName, AutoloadInfo> get_autoload_list() const;
 	void add_autoload(const AutoloadInfo &p_autoload);
 	void remove_autoload(const StringName &p_autoload);
 	bool has_autoload(const StringName &p_autoload) const;
@@ -172,11 +184,16 @@ public:
 };
 
 //not a macro any longer
-Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restart_if_changed = false, bool p_ignore_value_in_docs = false);
+Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restart_if_changed = false, bool p_ignore_value_in_docs = false, bool p_basic = false);
 #define GLOBAL_DEF(m_var, m_value) _GLOBAL_DEF(m_var, m_value)
 #define GLOBAL_DEF_RST(m_var, m_value) _GLOBAL_DEF(m_var, m_value, true)
 #define GLOBAL_DEF_NOVAL(m_var, m_value) _GLOBAL_DEF(m_var, m_value, false, true)
 #define GLOBAL_DEF_RST_NOVAL(m_var, m_value) _GLOBAL_DEF(m_var, m_value, true, true)
 #define GLOBAL_GET(m_var) ProjectSettings::get_singleton()->get(m_var)
+
+#define GLOBAL_DEF_BASIC(m_var, m_value) _GLOBAL_DEF(m_var, m_value, false, false, true)
+#define GLOBAL_DEF_RST_BASIC(m_var, m_value) _GLOBAL_DEF(m_var, m_value, true, false, true)
+#define GLOBAL_DEF_NOVAL_BASIC(m_var, m_value) _GLOBAL_DEF(m_var, m_value, false, true, true)
+#define GLOBAL_DEF_RST_NOVAL_BASIC(m_var, m_value) _GLOBAL_DEF(m_var, m_value, true, true, true)
 
 #endif // PROJECT_SETTINGS_H

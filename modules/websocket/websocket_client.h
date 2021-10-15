@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -42,7 +42,7 @@ class WebSocketClient : public WebSocketMultiplayerPeer {
 
 protected:
 	Ref<WebSocketPeer> _peer;
-	bool verify_ssl;
+	bool verify_ssl = true;
 	Ref<X509Certificate> ssl_cert;
 
 	static void _bind_methods();
@@ -57,7 +57,7 @@ public:
 
 	virtual Error connect_to_host(String p_host, String p_path, uint16_t p_port, bool p_ssl, const Vector<String> p_protocol = Vector<String>(), const Vector<String> p_custom_headers = Vector<String>()) = 0;
 	virtual void disconnect_from_host(int p_code = 1000, String p_reason = "") = 0;
-	virtual IP_Address get_connected_host() const = 0;
+	virtual IPAddress get_connected_host() const = 0;
 	virtual uint16_t get_connected_port() const = 0;
 
 	virtual bool is_server() const override;

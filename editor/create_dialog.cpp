@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -40,7 +40,7 @@
 void CreateDialog::popup_create(bool p_dont_clear, bool p_replace_mode, const String &p_select_type) {
 	_fill_type_list();
 
-	icon_fallback = search_options->has_theme_icon(base_type, "EditorIcons") ? base_type : "Object";
+	icon_fallback = search_options->has_theme_icon(base_type, SNAME("EditorIcons")) ? base_type : "Object";
 
 	if (p_dont_clear) {
 		search_box->select_all();
@@ -57,10 +57,10 @@ void CreateDialog::popup_create(bool p_dont_clear, bool p_replace_mode, const St
 
 	if (p_replace_mode) {
 		set_title(vformat(TTR("Change %s Type"), base_type));
-		get_ok()->set_text(TTR("Change"));
+		get_ok_button()->set_text(TTR("Change"));
 	} else {
 		set_title(vformat(TTR("Create New %s"), base_type));
-		get_ok()->set_text(TTR("Create"));
+		get_ok_button()->set_text(TTR("Create"));
 	}
 
 	_load_favorites_and_history();
@@ -130,7 +130,7 @@ bool CreateDialog::_should_hide_type(const String &p_type) const {
 	}
 
 	if (ClassDB::class_exists(p_type)) {
-		if (!ClassDB::can_instance(p_type)) {
+		if (!ClassDB::can_instantiate(p_type)) {
 			return true; // Can't create abstract class.
 		}
 
@@ -168,8 +168,9 @@ void CreateDialog::_update_search() {
 
 	TreeItem *root = search_options->create_item();
 	root->set_text(0, base_type);
-	root->set_icon(0, search_options->get_theme_icon(icon_fallback, "EditorIcons"));
+	root->set_icon(0, search_options->get_theme_icon(icon_fallback, SNAME("EditorIcons")));
 	search_options_types[base_type] = root;
+	_configure_search_option_item(root, base_type, ClassDB::class_exists(base_type));
 
 	const String search_text = search_box->get_text();
 	bool empty_search = search_text == "";
@@ -194,8 +195,9 @@ void CreateDialog::_update_search() {
 		select_type(_top_result(candidates, search_text));
 	} else {
 		favorite->set_disabled(true);
-		help_bit->set_text("");
-		get_ok()->set_disabled(true);
+		help_bit->set_text(vformat(TTR("No results for \"%s\"."), search_text));
+		help_bit->get_rich_text()->set_self_modulate(Color(1, 1, 1, 0.5));
+		get_ok_button()->set_disabled(true);
 		search_options->deselect_all();
 	}
 }
@@ -233,17 +235,20 @@ void CreateDialog::_configure_search_option_item(TreeItem *r_item, const String 
 		r_item->set_text(0, p_type);
 	}
 
-	bool can_instance = (p_cpp_type && ClassDB::can_instance(p_type)) || !p_cpp_type;
-	if (!can_instance) {
-		r_item->set_custom_color(0, search_options->get_theme_color("disabled_font_color", "Editor"));
+	bool can_instantiate = (p_cpp_type && ClassDB::can_instantiate(p_type)) || !p_cpp_type;
+	if (!can_instantiate) {
+		r_item->set_custom_color(0, search_options->get_theme_color(SNAME("disabled_font_color"), SNAME("Editor")));
+		r_item->set_icon(0, EditorNode::get_singleton()->get_class_icon(p_type, "NodeDisabled"));
 		r_item->set_selectable(0, false);
+	} else {
+		r_item->set_icon(0, EditorNode::get_singleton()->get_class_icon(p_type, icon_fallback));
 	}
 
 	if (search_box->get_text() != "") {
 		r_item->set_collapsed(false);
 	} else {
 		// Don't collapse the root node or an abstract node on the first tree level.
-		bool should_collapse = p_type != base_type && (r_item->get_parent()->get_text(0) != base_type || can_instance);
+		bool should_collapse = p_type != base_type && (r_item->get_parent()->get_text(0) != base_type || can_instantiate);
 
 		if (should_collapse && bool(EditorSettings::get_singleton()->get("docks/scene_tree/start_create_dialog_fully_expanded"))) {
 			should_collapse = false; // Collapse all nodes anyway.
@@ -253,7 +258,6 @@ void CreateDialog::_configure_search_option_item(TreeItem *r_item, const String 
 
 	const String &description = DTR(EditorHelp::get_doc_data()->class_list[p_type].brief_description);
 	r_item->set_tooltip(0, description);
-	r_item->set_icon(0, EditorNode::get_singleton()->get_class_icon(p_type, icon_fallback));
 
 	if (!p_cpp_type && !script_type) {
 		Ref<Texture2D> icon = EditorNode::get_editor_data().get_custom_types()[custom_type_parents[p_type]][custom_type_indices[p_type]].icon;
@@ -335,7 +339,7 @@ void CreateDialog::_confirmed() {
 		memdelete(f);
 	}
 
-	emit_signal("create");
+	emit_signal(SNAME("create"));
 	hide();
 	_cleanup();
 }
@@ -352,9 +356,11 @@ void CreateDialog::_sbox_input(const Ref<InputEvent> &p_ie) {
 			case KEY_DOWN:
 			case KEY_PAGEUP:
 			case KEY_PAGEDOWN: {
-				search_options->call("_gui_input", k);
+				search_options->gui_input(k);
 				search_box->accept_event();
 			} break;
+			default:
+				break;
 		}
 	}
 }
@@ -363,16 +369,16 @@ void CreateDialog::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE: {
 			connect("confirmed", callable_mp(this, &CreateDialog::_confirmed));
-			search_box->set_right_icon(search_options->get_theme_icon("Search", "EditorIcons"));
+			search_box->set_right_icon(search_options->get_theme_icon(SNAME("Search"), SNAME("EditorIcons")));
 			search_box->set_clear_button_enabled(true);
-			favorite->set_icon(search_options->get_theme_icon("Favorites", "EditorIcons"));
+			favorite->set_icon(search_options->get_theme_icon(SNAME("Favorites"), SNAME("EditorIcons")));
 		} break;
 		case NOTIFICATION_EXIT_TREE: {
 			disconnect("confirmed", callable_mp(this, &CreateDialog::_confirmed));
 		} break;
 		case NOTIFICATION_VISIBILITY_CHANGED: {
 			if (is_visible()) {
-				search_box->call_deferred("grab_focus"); // still not visible
+				search_box->call_deferred(SNAME("grab_focus")); // still not visible
 				search_box->select_all();
 			} else {
 				EditorSettings::get_singleton()->get_project_metadata("dialog_bounds", "create_new_node", Rect2(get_position(), get_size()));
@@ -390,13 +396,20 @@ void CreateDialog::select_type(const String &p_type) {
 	to_select->select(0);
 	search_options->scroll_to_item(to_select);
 
-	if (EditorHelp::get_doc_data()->class_list.has(p_type)) {
-		help_bit->set_text(DTR(EditorHelp::get_doc_data()->class_list[p_type].brief_description));
+	if (EditorHelp::get_doc_data()->class_list.has(p_type) && !DTR(EditorHelp::get_doc_data()->class_list[p_type].brief_description).is_empty()) {
+		// Display both class name and description, since the help bit may be displayed
+		// far away from the location (especially if the dialog was resized to be taller).
+		help_bit->set_text(vformat("[b]%s[/b]: %s", p_type, DTR(EditorHelp::get_doc_data()->class_list[p_type].brief_description)));
+		help_bit->get_rich_text()->set_self_modulate(Color(1, 1, 1, 1));
+	} else {
+		// Use nested `vformat()` as translators shouldn't interfere with BBCode tags.
+		help_bit->set_text(vformat(TTR("No description available for %s."), vformat("[b]%s[/b]", p_type)));
+		help_bit->get_rich_text()->set_self_modulate(Color(1, 1, 1, 0.5));
 	}
 
 	favorite->set_disabled(false);
 	favorite->set_pressed(favorite_list.find(p_type) != -1);
-	get_ok()->set_disabled(false);
+	get_ok_button()->set_disabled(false);
 }
 
 String CreateDialog::get_selected_type() {
@@ -408,15 +421,15 @@ String CreateDialog::get_selected_type() {
 	return selected->get_text(0);
 }
 
-Object *CreateDialog::instance_selected() {
+Variant CreateDialog::instance_selected() {
 	TreeItem *selected = search_options->get_selected();
 
 	if (!selected) {
-		return nullptr;
+		return Variant();
 	}
 
 	Variant md = selected->get_metadata(0);
-	Object *obj = nullptr;
+	Variant obj;
 	if (md.get_type() != Variant::NIL) {
 		String custom = md;
 		if (ScriptServer::is_global_class(custom)) {
@@ -429,18 +442,17 @@ Object *CreateDialog::instance_selected() {
 			obj = EditorNode::get_editor_data().instance_custom_type(selected->get_text(0), custom);
 		}
 	} else {
-		obj = ClassDB::instance(selected->get_text(0));
+		obj = ClassDB::instantiate(selected->get_text(0));
 	}
 
 	// Check if any Object-type property should be instantiated.
 	List<PropertyInfo> pinfo;
-	obj->get_property_list(&pinfo);
+	((Object *)obj)->get_property_list(&pinfo);
 
-	for (List<PropertyInfo>::Element *E = pinfo.front(); E; E = E->next()) {
-		PropertyInfo pi = E->get();
+	for (const PropertyInfo &pi : pinfo) {
 		if (pi.type == Variant::OBJECT && pi.usage & PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT) {
-			Object *prop = ClassDB::instance(pi.class_name);
-			obj->set(pi.name, prop);
+			Object *prop = ClassDB::instantiate(pi.class_name);
+			((Object *)obj)->set(pi.name, prop);
 		}
 	}
 
@@ -492,7 +504,7 @@ void CreateDialog::_favorite_selected() {
 	}
 
 	search_box->set_text(item->get_text(0).get_slicec(' ', 0));
-	recent->unselect_all();
+	recent->deselect_all();
 	_update_search();
 }
 
@@ -604,7 +616,7 @@ void CreateDialog::_save_and_update_favorite_list() {
 		memdelete(f);
 	}
 
-	emit_signal("favorites_updated");
+	emit_signal(SNAME("favorites_updated"));
 }
 
 void CreateDialog::_load_favorites_and_history() {
@@ -640,9 +652,9 @@ void CreateDialog::_load_favorites_and_history() {
 void CreateDialog::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_save_and_update_favorite_list"), &CreateDialog::_save_and_update_favorite_list);
 
-	ClassDB::bind_method("get_drag_data_fw", &CreateDialog::get_drag_data_fw);
-	ClassDB::bind_method("can_drop_data_fw", &CreateDialog::can_drop_data_fw);
-	ClassDB::bind_method("drop_data_fw", &CreateDialog::drop_data_fw);
+	ClassDB::bind_method("_get_drag_data_fw", &CreateDialog::get_drag_data_fw);
+	ClassDB::bind_method("_can_drop_data_fw", &CreateDialog::can_drop_data_fw);
+	ClassDB::bind_method("_drop_data_fw", &CreateDialog::drop_data_fw);
 
 	ADD_SIGNAL(MethodInfo("create"));
 	ADD_SIGNAL(MethodInfo("favorites_updated"));
@@ -705,7 +717,6 @@ CreateDialog::CreateDialog() {
 	search_hb->add_child(search_box);
 
 	favorite = memnew(Button);
-	favorite->set_flat(true);
 	favorite->set_toggle_mode(true);
 	favorite->set_tooltip(TTR("(Un)favorite selected item."));
 	favorite->connect("pressed", callable_mp(this, &CreateDialog::_favorite_toggled));

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,18 +30,17 @@
 
 #include "project_settings.h"
 
-#include "core/core_bind.h"
+#include "core/core_bind.h" // For Compression enum.
 #include "core/core_string_names.h"
+#include "core/input/input_map.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/file_access_network.h"
 #include "core/io/file_access_pack.h"
 #include "core/io/marshalls.h"
-#include "core/os/dir_access.h"
-#include "core/os/file_access.h"
 #include "core/os/keyboard.h"
 #include "core/os/os.h"
 #include "core/variant/variant_parser.h"
-
-#include <zlib.h>
 
 ProjectSettings *ProjectSettings::singleton = nullptr;
 
@@ -49,19 +48,25 @@ ProjectSettings *ProjectSettings::get_singleton() {
 	return singleton;
 }
 
+String ProjectSettings::get_project_data_dir_name() const {
+	return project_data_dir_name;
+}
+
+String ProjectSettings::get_project_data_path() const {
+	return "res://" + get_project_data_dir_name();
+}
+
 String ProjectSettings::get_resource_path() const {
 	return resource_path;
 }
 
-const String ProjectSettings::IMPORTED_FILES_PATH("res://.godot/imported");
+String ProjectSettings::get_imported_files_path() const {
+	return get_project_data_path().plus_file("imported");
+}
 
 String ProjectSettings::localize_path(const String &p_path) const {
-	if (resource_path == "") {
-		return p_path; //not initialized yet
-	}
-
-	if (p_path.begins_with("res://") || p_path.begins_with("user://") ||
-			(p_path.is_abs_path() && !p_path.begins_with(resource_path))) {
+	if (resource_path.is_empty() || p_path.begins_with("res://") || p_path.begins_with("user://") ||
+			(p_path.is_absolute_path() && !p_path.begins_with(resource_path))) {
 		return p_path.simplify_path();
 	}
 
@@ -122,6 +127,11 @@ void ProjectSettings::set_initial_value(const String &p_name, const Variant &p_v
 void ProjectSettings::set_restart_if_changed(const String &p_name, bool p_restart) {
 	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
 	props[p_name].restart_if_changed = p_restart;
+}
+
+void ProjectSettings::set_as_basic(const String &p_name, bool p_basic) {
+	ERR_FAIL_COND_MSG(!props.has(p_name), "Request for nonexistent project setting: " + p_name + ".");
+	props[p_name].basic = p_basic;
 }
 
 void ProjectSettings::set_ignore_value_in_docs(const String &p_name, bool p_ignore) {
@@ -242,7 +252,7 @@ struct _VCSort {
 	String name;
 	Variant::Type type;
 	int order;
-	int flags;
+	uint32_t flags;
 
 	bool operator<(const _VCSort &p_vcs) const { return order == p_vcs.order ? name < p_vcs.name : order < p_vcs.order; }
 };
@@ -252,21 +262,25 @@ void ProjectSettings::_get_property_list(List<PropertyInfo> *p_list) const {
 
 	Set<_VCSort> vclist;
 
-	for (Map<StringName, VariantContainer>::Element *E = props.front(); E; E = E->next()) {
-		const VariantContainer *v = &E->get();
+	for (const KeyValue<StringName, VariantContainer> &E : props) {
+		const VariantContainer *v = &E.value;
 
 		if (v->hide_from_editor) {
 			continue;
 		}
 
 		_VCSort vc;
-		vc.name = E->key();
+		vc.name = E.key;
 		vc.order = v->order;
 		vc.type = v->variant.get_type();
 		if (vc.name.begins_with("input/") || vc.name.begins_with("import/") || vc.name.begins_with("export/") || vc.name.begins_with("/remap") || vc.name.begins_with("/locale") || vc.name.begins_with("/autoload")) {
 			vc.flags = PROPERTY_USAGE_STORAGE;
 		} else {
 			vc.flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_STORAGE;
+		}
+
+		if (v->basic) {
+			vc.flags |= PROPERTY_USAGE_EDITOR_BASIC_SETTING;
 		}
 
 		if (v->restart_if_changed) {
@@ -278,7 +292,7 @@ void ProjectSettings::_get_property_list(List<PropertyInfo> *p_list) const {
 	for (Set<_VCSort>::Element *E = vclist.front(); E; E = E->next()) {
 		String prop_info_name = E->get().name;
 		int dot = prop_info_name.find(".");
-		if (dot != -1) {
+		if (dot != -1 && !custom_prop_info.has(prop_info_name)) {
 			prop_info_name = prop_info_name.substr(0, dot);
 		}
 
@@ -314,14 +328,14 @@ bool ProjectSettings::_load_resource_pack(const String &p_pack, bool p_replace_f
 void ProjectSettings::_convert_to_last_version(int p_from_version) {
 	if (p_from_version <= 3) {
 		// Converts the actions from array to dictionary (array of events to dictionary with deadzone + events)
-		for (Map<StringName, ProjectSettings::VariantContainer>::Element *E = props.front(); E; E = E->next()) {
-			Variant value = E->get().variant;
-			if (String(E->key()).begins_with("input/") && value.get_type() == Variant::ARRAY) {
+		for (KeyValue<StringName, ProjectSettings::VariantContainer> &E : props) {
+			Variant value = E.value.variant;
+			if (String(E.key).begins_with("input/") && value.get_type() == Variant::ARRAY) {
 				Array array = value;
 				Dictionary action;
 				action["deadzone"] = Variant(0.5f);
 				action["events"] = array;
-				E->get().variant = action;
+				E.value.variant = action;
 			}
 		}
 	}
@@ -383,7 +397,7 @@ Error ProjectSettings::_setup(const String &p_path, const String &p_main_pack, b
 
 	if (exec_path != "") {
 		// We do several tests sequentially until one succeeds to find a PCK,
-		// and if so we attempt loading it at the end.
+		// and if so, we attempt loading it at the end.
 
 		// Attempt with PCK bundled into executable.
 		bool found = _load_resource_pack(exec_path);
@@ -457,16 +471,17 @@ Error ProjectSettings::_setup(const String &p_path, const String &p_main_pack, b
 	d->change_dir(p_path);
 
 	String current_dir = d->get_current_dir();
-	String candidate = current_dir;
 	bool found = false;
 	Error err;
 
 	while (true) {
+		// Set the resource path early so things can be resolved when loading.
+		resource_path = current_dir;
+		resource_path = resource_path.replace("\\", "/"); // Windows path to Unix path just in case.
 		err = _load_settings_text_or_binary(current_dir.plus_file("project.godot"), current_dir.plus_file("project.binary"));
 		if (err == OK) {
 			// Optional, we don't mind if it fails.
 			_load_settings_text(current_dir.plus_file("override.cfg"));
-			candidate = current_dir;
 			found = true;
 			break;
 		}
@@ -483,8 +498,6 @@ Error ProjectSettings::_setup(const String &p_path, const String &p_main_pack, b
 		}
 	}
 
-	resource_path = candidate;
-	resource_path = resource_path.replace("\\", "/"); // Windows path to Unix path just in case.
 	memdelete(d);
 
 	if (!found) {
@@ -506,6 +519,10 @@ Error ProjectSettings::setup(const String &p_path, const String &p_main_pack, bo
 			_load_settings_text(custom_settings);
 		}
 	}
+
+	// Updating the default value after the project settings have loaded.
+	project_data_dir_name = GLOBAL_GET("application/config/project_data_dir_name");
+
 	// Using GLOBAL_GET on every block for compressing can be slow, so assigning here.
 	Compression::zstd_long_distance_matching = GLOBAL_GET("compression/formats/zstd/long_distance_matching");
 	Compression::zstd_level = GLOBAL_GET("compression/formats/zstd/compression_level");
@@ -597,6 +614,7 @@ Error ProjectSettings::_load_settings_text(const String &p_path) {
 			// If we're loading a project.godot from source code, we can operate some
 			// ProjectSettings conversions if need be.
 			_convert_to_last_version(config_version);
+			last_save_time = FileAccess::get_modified_time(get_resource_path().plus_file("project.godot"));
 			return OK;
 		} else if (err != OK) {
 			ERR_PRINT("Error parsing " + p_path + " at line " + itos(lines) + ": " + error_text + " File might be corrupted.");
@@ -632,7 +650,6 @@ Error ProjectSettings::_load_settings_text_or_binary(const String &p_text_path, 
 	} else if (err != ERR_FILE_NOT_FOUND) {
 		// If the file exists but can't be loaded, we want to know it.
 		ERR_PRINT("Couldn't load file '" + p_bin_path + "', error code " + itos(err) + ".");
-		return err;
 	}
 
 	// Fallback to text-based project.godot file if binary was not found.
@@ -641,7 +658,6 @@ Error ProjectSettings::_load_settings_text_or_binary(const String &p_text_path, 
 		return OK;
 	} else if (err != ERR_FILE_NOT_FOUND) {
 		ERR_PRINT("Couldn't load file '" + p_text_path + "', error code " + itos(err) + ".");
-		return err;
 	}
 
 	return err;
@@ -676,7 +692,11 @@ void ProjectSettings::clear(const String &p_name) {
 }
 
 Error ProjectSettings::save() {
-	return save_custom(get_resource_path().plus_file("project.godot"));
+	Error error = save_custom(get_resource_path().plus_file("project.godot"));
+	if (error == OK) {
+		last_save_time = FileAccess::get_modified_time(get_resource_path().plus_file("project.godot"));
+	}
+	return error;
 }
 
 Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<String, List<String>> &props, const CustomMap &p_custom, const String &p_custom_features) {
@@ -689,18 +709,15 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 
 	int count = 0;
 
-	for (Map<String, List<String>>::Element *E = props.front(); E; E = E->next()) {
-		for (List<String>::Element *F = E->get().front(); F; F = F->next()) {
-			count++;
-		}
+	for (const KeyValue<String, List<String>> &E : props) {
+		count += E.value.size();
 	}
 
 	if (p_custom_features != String()) {
 		file->store_32(count + 1);
 		//store how many properties are saved, add one for custom featuers, which must always go first
 		String key = CoreStringNames::get_singleton()->_custom_features;
-		file->store_32(key.length());
-		file->store_string(key);
+		file->store_pascal_string(key);
 
 		int len;
 		err = encode_variant(p_custom_features, nullptr, len, false);
@@ -725,8 +742,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 	}
 
 	for (Map<String, List<String>>::Element *E = props.front(); E; E = E->next()) {
-		for (List<String>::Element *F = E->get().front(); F; F = F->next()) {
-			String key = F->get();
+		for (String &key : E->get()) {
 			if (E->key() != "") {
 				key = E->key() + "/" + key;
 			}
@@ -737,8 +753,7 @@ Error ProjectSettings::_save_settings_binary(const String &p_file, const Map<Str
 				value = get(key);
 			}
 
-			file->store_32(key.length());
-			file->store_string(key);
+			file->store_pascal_string(key);
 
 			int len;
 			err = encode_variant(value, nullptr, len, true);
@@ -787,7 +802,7 @@ Error ProjectSettings::_save_settings_text(const String &p_file, const Map<Strin
 	}
 	file->store_string("\n");
 
-	for (Map<String, List<String>>::Element *E = props.front(); E; E = E->next()) {
+	for (const Map<String, List<String>>::Element *E = props.front(); E; E = E->next()) {
 		if (E != props.front()) {
 			file->store_string("\n");
 		}
@@ -795,8 +810,8 @@ Error ProjectSettings::_save_settings_text(const String &p_file, const Map<Strin
 		if (E->key() != "") {
 			file->store_string("[" + E->key() + "]\n\n");
 		}
-		for (List<String>::Element *F = E->get().front(); F; F = F->next()) {
-			String key = F->get();
+		for (const String &F : E->get()) {
+			String key = F;
 			if (E->key() != "") {
 				key = E->key() + "/" + key;
 			}
@@ -809,7 +824,7 @@ Error ProjectSettings::_save_settings_text(const String &p_file, const Map<Strin
 
 			String vstr;
 			VariantWriter::write_to_string(value, vstr);
-			file->store_string(F->get().property_name_encode() + "=" + vstr + "\n");
+			file->store_string(F.property_name_encode() + "=" + vstr + "\n");
 		}
 	}
 
@@ -830,19 +845,19 @@ Error ProjectSettings::save_custom(const String &p_path, const CustomMap &p_cust
 	Set<_VCSort> vclist;
 
 	if (p_merge_with_current) {
-		for (Map<StringName, VariantContainer>::Element *G = props.front(); G; G = G->next()) {
-			const VariantContainer *v = &G->get();
+		for (const KeyValue<StringName, VariantContainer> &G : props) {
+			const VariantContainer *v = &G.value;
 
 			if (v->hide_from_editor) {
 				continue;
 			}
 
-			if (p_custom.has(G->key())) {
+			if (p_custom.has(G.key)) {
 				continue;
 			}
 
 			_VCSort vc;
-			vc.name = G->key(); //*k;
+			vc.name = G.key; //*k;
 			vc.order = v->order;
 			vc.type = v->variant.get_type();
 			vc.flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_STORAGE;
@@ -854,14 +869,14 @@ Error ProjectSettings::save_custom(const String &p_path, const CustomMap &p_cust
 		}
 	}
 
-	for (const Map<String, Variant>::Element *E = p_custom.front(); E; E = E->next()) {
+	for (const KeyValue<String, Variant> &E : p_custom) {
 		// Lookup global prop to store in the same order
-		Map<StringName, VariantContainer>::Element *global_prop = props.find(E->key());
+		Map<StringName, VariantContainer>::Element *global_prop = props.find(E.key);
 
 		_VCSort vc;
-		vc.name = E->key();
+		vc.name = E.key;
 		vc.order = global_prop ? global_prop->get().order : 0xFFFFFFF;
-		vc.type = E->get().get_type();
+		vc.type = E.value.get_type();
 		vc.flags = PROPERTY_USAGE_STORAGE;
 		vclist.insert(vc);
 	}
@@ -894,7 +909,7 @@ Error ProjectSettings::save_custom(const String &p_path, const CustomMap &p_cust
 		custom_features += f;
 	}
 
-	if (p_path.ends_with(".godot")) {
+	if (p_path.ends_with(".godot") || p_path.ends_with("override.cfg")) {
 		return _save_settings_text(p_path, props, p_custom, custom_features);
 	} else if (p_path.ends_with(".binary")) {
 		return _save_settings_binary(p_path, props, p_custom, custom_features);
@@ -903,7 +918,7 @@ Error ProjectSettings::save_custom(const String &p_path, const CustomMap &p_cust
 	}
 }
 
-Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restart_if_changed, bool p_ignore_value_in_docs) {
+Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restart_if_changed, bool p_ignore_value_in_docs, bool p_basic) {
 	Variant ret;
 	if (!ProjectSettings::get_singleton()->has_setting(p_var)) {
 		ProjectSettings::get_singleton()->set(p_var, p_default);
@@ -912,6 +927,7 @@ Variant _GLOBAL_DEF(const String &p_var, const Variant &p_default, bool p_restar
 
 	ProjectSettings::get_singleton()->set_initial_value(p_var, p_default);
 	ProjectSettings::get_singleton()->set_builtin_order(p_var);
+	ProjectSettings::get_singleton()->set_as_basic(p_var, p_basic);
 	ProjectSettings::get_singleton()->set_restart_if_changed(p_var, p_restart_if_changed);
 	ProjectSettings::get_singleton()->set_ignore_value_in_docs(p_var, p_ignore_value_in_docs);
 	return ret;
@@ -922,11 +938,11 @@ Vector<String> ProjectSettings::get_optimizer_presets() const {
 	ProjectSettings::get_singleton()->get_property_list(&pi);
 	Vector<String> names;
 
-	for (List<PropertyInfo>::Element *E = pi.front(); E; E = E->next()) {
-		if (!E->get().name.begins_with("optimizer_presets/")) {
+	for (const PropertyInfo &E : pi) {
+		if (!E.name.begins_with("optimizer_presets/")) {
 			continue;
 		}
-		names.push_back(E->get().name.get_slicec('/', 1));
+		names.push_back(E.name.get_slicec('/', 1));
 	}
 
 	names.sort();
@@ -1000,7 +1016,7 @@ bool ProjectSettings::has_custom_feature(const String &p_feature) const {
 	return custom_features.has(p_feature);
 }
 
-Map<StringName, ProjectSettings::AutoloadInfo> ProjectSettings::get_autoload_list() const {
+OrderedHashMap<StringName, ProjectSettings::AutoloadInfo> ProjectSettings::get_autoload_list() const {
 	return autoloads;
 }
 
@@ -1042,205 +1058,73 @@ void ProjectSettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_custom", "file"), &ProjectSettings::_save_custom_bnd);
 }
 
+void ProjectSettings::_add_builtin_input_map() {
+	if (InputMap::get_singleton()) {
+		OrderedHashMap<String, List<Ref<InputEvent>>> builtins = InputMap::get_singleton()->get_builtins();
+
+		for (OrderedHashMap<String, List<Ref<InputEvent>>>::Element E = builtins.front(); E; E = E.next()) {
+			Array events;
+
+			// Convert list of input events into array
+			for (List<Ref<InputEvent>>::Element *I = E.get().front(); I; I = I->next()) {
+				events.push_back(I->get());
+			}
+
+			Dictionary action;
+			action["deadzone"] = Variant(0.5f);
+			action["events"] = events;
+
+			String action_name = "input/" + E.key();
+			GLOBAL_DEF(action_name, action);
+			input_presets.push_back(action_name);
+		}
+	}
+}
+
 ProjectSettings::ProjectSettings() {
 	// Initialization of engine variables should be done in the setup() method,
 	// so that the values can be overridden from project.godot or project.binary.
 
 	singleton = this;
 
-	Array events;
-	Dictionary action;
-	Ref<InputEventKey> key;
-	Ref<InputEventJoypadButton> joyb;
-
-	GLOBAL_DEF("application/config/name", "");
-	GLOBAL_DEF("application/config/description", "");
+	GLOBAL_DEF_BASIC("application/config/name", "");
+	GLOBAL_DEF_BASIC("application/config/description", "");
 	custom_prop_info["application/config/description"] = PropertyInfo(Variant::STRING, "application/config/description", PROPERTY_HINT_MULTILINE_TEXT);
-	GLOBAL_DEF("application/run/main_scene", "");
+	GLOBAL_DEF_BASIC("application/run/main_scene", "");
 	custom_prop_info["application/run/main_scene"] = PropertyInfo(Variant::STRING, "application/run/main_scene", PROPERTY_HINT_FILE, "*.tscn,*.scn,*.res");
 	GLOBAL_DEF("application/run/disable_stdout", false);
 	GLOBAL_DEF("application/run/disable_stderr", false);
+	project_data_dir_name = GLOBAL_DEF_RST("application/config/project_data_dir_name", ".godot");
 	GLOBAL_DEF("application/config/use_custom_user_dir", false);
 	GLOBAL_DEF("application/config/custom_user_dir_name", "");
 	GLOBAL_DEF("application/config/project_settings_override", "");
-	GLOBAL_DEF("audio/default_bus_layout", "res://default_bus_layout.tres");
-	custom_prop_info["audio/default_bus_layout"] = PropertyInfo(Variant::STRING, "audio/default_bus_layout", PROPERTY_HINT_FILE, "*.tres");
+	GLOBAL_DEF_BASIC("audio/buses/default_bus_layout", "res://default_bus_layout.tres");
+	custom_prop_info["audio/buses/default_bus_layout"] = PropertyInfo(Variant::STRING, "audio/buses/default_bus_layout", PROPERTY_HINT_FILE, "*.tres");
 
 	PackedStringArray extensions = PackedStringArray();
 	extensions.push_back("gd");
 	if (Engine::get_singleton()->has_singleton("GodotSharp")) {
 		extensions.push_back("cs");
 	}
-	extensions.push_back("shader");
+	extensions.push_back("gdshader");
 
-	GLOBAL_DEF("editor/search_in_file_extensions", extensions);
-	custom_prop_info["editor/search_in_file_extensions"] = PropertyInfo(Variant::PACKED_STRING_ARRAY, "editor/search_in_file_extensions");
+	GLOBAL_DEF("editor/run/main_run_args", "");
 
-	GLOBAL_DEF("editor/script_templates_search_path", "res://script_templates");
-	custom_prop_info["editor/script_templates_search_path"] = PropertyInfo(Variant::STRING, "editor/script_templates_search_path", PROPERTY_HINT_DIR);
+	GLOBAL_DEF("editor/script/search_in_file_extensions", extensions);
+	custom_prop_info["editor/script/search_in_file_extensions"] = PropertyInfo(Variant::PACKED_STRING_ARRAY, "editor/script/search_in_file_extensions");
 
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_ENTER);
-	events.push_back(key);
-	key.instance();
-	key->set_keycode(KEY_KP_ENTER);
-	events.push_back(key);
-	key.instance();
-	key->set_keycode(KEY_SPACE);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_A);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_accept", action);
-	input_presets.push_back("input/ui_accept");
+	GLOBAL_DEF("editor/script/templates_search_path", "res://script_templates");
+	custom_prop_info["editor/script/templates_search_path"] = PropertyInfo(Variant::STRING, "editor/script/templates_search_path", PROPERTY_HINT_DIR);
 
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_SPACE);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_Y);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_select", action);
-	input_presets.push_back("input/ui_select");
+	_add_builtin_input_map();
 
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_ESCAPE);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_B);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_cancel", action);
-	input_presets.push_back("input/ui_cancel");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_TAB);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_focus_next", action);
-	input_presets.push_back("input/ui_focus_next");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_TAB);
-	key->set_shift(true);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_focus_prev", action);
-	input_presets.push_back("input/ui_focus_prev");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_LEFT);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_DPAD_LEFT);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_left", action);
-	input_presets.push_back("input/ui_left");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_RIGHT);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_DPAD_RIGHT);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_right", action);
-	input_presets.push_back("input/ui_right");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_UP);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_DPAD_UP);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_up", action);
-	input_presets.push_back("input/ui_up");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_DOWN);
-	events.push_back(key);
-	joyb.instance();
-	joyb->set_button_index(JOY_BUTTON_DPAD_DOWN);
-	events.push_back(joyb);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_down", action);
-	input_presets.push_back("input/ui_down");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_PAGEUP);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_page_up", action);
-	input_presets.push_back("input/ui_page_up");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_PAGEDOWN);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_page_down", action);
-	input_presets.push_back("input/ui_page_down");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_HOME);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_home", action);
-	input_presets.push_back("input/ui_home");
-
-	action = Dictionary();
-	action["deadzone"] = Variant(0.5f);
-	events = Array();
-	key.instance();
-	key->set_keycode(KEY_END);
-	events.push_back(key);
-	action["events"] = events;
-	GLOBAL_DEF("input/ui_end", action);
-	input_presets.push_back("input/ui_end");
-
-	custom_prop_info["display/window/handheld/orientation"] = PropertyInfo(Variant::STRING, "display/window/handheld/orientation", PROPERTY_HINT_ENUM, "landscape,portrait,reverse_landscape,reverse_portrait,sensor_landscape,sensor_portrait,sensor");
-	custom_prop_info["rendering/threads/thread_model"] = PropertyInfo(Variant::INT, "rendering/threads/thread_model", PROPERTY_HINT_ENUM, "Single-Unsafe,Single-Safe,Multi-Threaded");
-	custom_prop_info["physics/2d/thread_model"] = PropertyInfo(Variant::INT, "physics/2d/thread_model", PROPERTY_HINT_ENUM, "Single-Unsafe,Single-Safe,Multi-Threaded");
-	custom_prop_info["rendering/quality/intended_usage/framebuffer_allocation"] = PropertyInfo(Variant::INT, "rendering/quality/intended_usage/framebuffer_allocation", PROPERTY_HINT_ENUM, "2D,2D Without Sampling,3D,3D Without Effects");
+	// Keep the enum values in sync with the `DisplayServer::ScreenOrientation` enum.
+	custom_prop_info["display/window/handheld/orientation"] = PropertyInfo(Variant::INT, "display/window/handheld/orientation", PROPERTY_HINT_ENUM, "Landscape,Portrait,Reverse Landscape,Reverse Portrait,Sensor Landscape,Sensor Portrait,Sensor");
+	// Keep the enum values in sync with the `DisplayServer::VSyncMode` enum.
+	custom_prop_info["display/window/vsync/vsync_mode"] = PropertyInfo(Variant::INT, "display/window/vsync/vsync_mode", PROPERTY_HINT_ENUM, "Disabled,Enabled,Adaptive,Mailbox");
+	custom_prop_info["rendering/driver/threads/thread_model"] = PropertyInfo(Variant::INT, "rendering/driver/threads/thread_model", PROPERTY_HINT_ENUM, "Single-Unsafe,Single-Safe,Multi-Threaded");
+	GLOBAL_DEF("physics/2d/run_on_thread", false);
+	GLOBAL_DEF("physics/3d/run_on_thread", false);
 
 	GLOBAL_DEF("debug/settings/profiler/max_functions", 16384);
 	custom_prop_info["debug/settings/profiler/max_functions"] = PropertyInfo(Variant::INT, "debug/settings/profiler/max_functions", PROPERTY_HINT_RANGE, "128,65535,1");

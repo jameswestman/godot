@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -28,26 +28,21 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-// Must include Winsock before windows.h (included by os_windows.h)
-#include "drivers/unix/net_socket_posix.h"
-
 #include "os_windows.h"
 
 #include "core/debugger/engine_debugger.h"
 #include "core/debugger/script_debugger.h"
 #include "core/io/marshalls.h"
 #include "core/version_generated.gen.h"
+#include "drivers/unix/net_socket_posix.h"
 #include "drivers/windows/dir_access_windows.h"
 #include "drivers/windows/file_access_windows.h"
-#include "drivers/windows/rw_lock_windows.h"
-#include "drivers/windows/thread_windows.h"
 #include "joypad_windows.h"
 #include "lang_table.h"
 #include "main/main.h"
 #include "platform/windows/display_server_windows.h"
 #include "servers/audio_server.h"
 #include "servers/rendering/rendering_server_default.h"
-#include "servers/rendering/rendering_server_wrap_mt.h"
 #include "windows_terminal_logger.h"
 
 #include <avrt.h>
@@ -78,7 +73,6 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #define GetProcAddress (void *)GetProcAddress
 #endif
 
-#ifdef DEBUG_ENABLED
 static String format_error_message(DWORD id) {
 	LPWSTR messageBuffer = nullptr;
 	size_t size = FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -90,7 +84,6 @@ static String format_error_message(DWORD id) {
 
 	return msg;
 }
-#endif // DEBUG_ENABLED
 
 void RedirectIOToConsole() {
 	int hConHandle;
@@ -168,6 +161,10 @@ BOOL WINAPI HandlerRoutine(_In_ DWORD dwCtrlType) {
 	}
 }
 
+void OS_Windows::alert(const String &p_alert, const String &p_title) {
+	MessageBoxW(nullptr, (LPCWSTR)(p_alert.utf16().get_data()), (LPCWSTR)(p_title.utf16().get_data()), MB_OK | MB_ICONEXCLAMATION | MB_TASKMODAL);
+}
+
 void OS_Windows::initialize_debugging() {
 	SetConsoleCtrlHandler(HandlerRoutine, TRUE);
 }
@@ -176,9 +173,6 @@ void OS_Windows::initialize() {
 	crash_handler.initialize();
 
 	//RedirectIOToConsole();
-
-	ThreadWindows::make_default();
-	RWLockWindows::make_default();
 
 	FileAccess::make_default<FileAccessWindows>(FileAccess::ACCESS_RESOURCES);
 	FileAccess::make_default<FileAccessWindows>(FileAccess::ACCESS_USERDATA);
@@ -210,7 +204,7 @@ void OS_Windows::initialize() {
 	current_pi.pi.hProcess = GetCurrentProcess();
 	process_map->insert(GetCurrentProcessId(), current_pi);
 
-	IP_Unix::make_default();
+	IPUnix::make_default();
 	main_loop = nullptr;
 }
 
@@ -321,8 +315,8 @@ OS::Time OS_Windows::get_time(bool utc) const {
 
 	Time time;
 	time.hour = systemtime.wHour;
-	time.min = systemtime.wMinute;
-	time.sec = systemtime.wSecond;
+	time.minute = systemtime.wMinute;
+	time.second = systemtime.wSecond;
 	return time;
 }
 
@@ -340,7 +334,7 @@ OS::TimeZoneInfo OS_Windows::get_time_zone_info() const {
 	}
 
 	// Bias value returned by GetTimeZoneInformation is inverted of what we expect
-	// For example on GMT-3 GetTimeZoneInformation return a Bias of 180, so invert the value to get -180
+	// For example, on GMT-3 GetTimeZoneInformation return a Bias of 180, so invert the value to get -180
 	ret.bias = -info.Bias;
 	return ret;
 }
@@ -410,24 +404,23 @@ String OS_Windows::_quote_command_line_argument(const String &p_text) const {
 	return p_text;
 }
 
-Error OS_Windows::execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id, String *r_pipe, int *r_exitcode, bool read_stderr, Mutex *p_pipe_mutex) {
+Error OS_Windows::execute(const String &p_path, const List<String> &p_arguments, String *r_pipe, int *r_exitcode, bool read_stderr, Mutex *p_pipe_mutex) {
 	String path = p_path.replace("/", "\\");
+	String command = _quote_command_line_argument(path);
+	for (const String &E : p_arguments) {
+		command += " " + _quote_command_line_argument(E);
+	}
 
-	if (p_blocking && r_pipe) {
-		String argss = _quote_command_line_argument(path);
-		for (const List<String>::Element *E = p_arguments.front(); E; E = E->next()) {
-			argss += " " + _quote_command_line_argument(E->get());
-		}
-
+	if (r_pipe) {
 		if (read_stderr) {
-			argss += " 2>&1"; // Read stderr too
+			command += " 2>&1"; // Include stderr
 		}
-		// Note: _wpopen is calling command as "cmd.exe /c argss", instead of executing it directly, add extra quotes around full command, to prevent it from stripping quotes in the command.
-		argss = _quote_command_line_argument(argss);
+		// Add extra quotes around the full command, to prevent it from stripping quotes in the command,
+		// because _wpopen calls command as "cmd.exe /c command", instead of executing it directly
+		command = _quote_command_line_argument(command);
 
-		FILE *f = _wpopen((LPCWSTR)(argss.utf16().get_data()), L"r");
-		ERR_FAIL_COND_V(!f, ERR_CANT_OPEN);
-
+		FILE *f = _wpopen((LPCWSTR)(command.utf16().get_data()), L"r");
+		ERR_FAIL_COND_V_MSG(!f, ERR_CANT_OPEN, "Cannot create pipe from command: " + command);
 		char buf[65535];
 		while (fgets(buf, 65535, f)) {
 			if (p_pipe_mutex) {
@@ -438,20 +431,12 @@ Error OS_Windows::execute(const String &p_path, const List<String> &p_arguments,
 				p_pipe_mutex->unlock();
 			}
 		}
-
 		int rv = _pclose(f);
+
 		if (r_exitcode) {
 			*r_exitcode = rv;
 		}
-
 		return OK;
-	}
-
-	String cmdline = _quote_command_line_argument(path);
-	const List<String>::Element *I = p_arguments.front();
-	while (I) {
-		cmdline += " " + _quote_command_line_argument(I->get());
-		I = I->next();
 	}
 
 	ProcessInfo pi;
@@ -460,27 +445,43 @@ Error OS_Windows::execute(const String &p_path, const List<String> &p_arguments,
 	ZeroMemory(&pi.pi, sizeof(pi.pi));
 	LPSTARTUPINFOW si_w = (LPSTARTUPINFOW)&pi.si;
 
-	Char16String modstr = cmdline.utf16(); // Windows wants to change this no idea why.
-	int ret = CreateProcessW(nullptr, (LPWSTR)(modstr.ptrw()), nullptr, nullptr, 0, NORMAL_PRIORITY_CLASS & CREATE_NO_WINDOW, nullptr, nullptr, si_w, &pi.pi);
-	ERR_FAIL_COND_V(ret == 0, ERR_CANT_FORK);
+	int ret = CreateProcessW(nullptr, (LPWSTR)(command.utf16().ptrw()), nullptr, nullptr, false, NORMAL_PRIORITY_CLASS & CREATE_NO_WINDOW, nullptr, nullptr, si_w, &pi.pi);
+	ERR_FAIL_COND_V_MSG(ret == 0, ERR_CANT_FORK, "Could not create child process: " + command);
 
-	if (p_blocking) {
-		WaitForSingleObject(pi.pi.hProcess, INFINITE);
-		if (r_exitcode) {
-			DWORD ret2;
-			GetExitCodeProcess(pi.pi.hProcess, &ret2);
-			*r_exitcode = ret2;
-		}
-
-		CloseHandle(pi.pi.hProcess);
-		CloseHandle(pi.pi.hThread);
-	} else {
-		ProcessID pid = pi.pi.dwProcessId;
-		if (r_child_id) {
-			*r_child_id = pid;
-		}
-		process_map->insert(pid, pi);
+	WaitForSingleObject(pi.pi.hProcess, INFINITE);
+	if (r_exitcode) {
+		DWORD ret2;
+		GetExitCodeProcess(pi.pi.hProcess, &ret2);
+		*r_exitcode = ret2;
 	}
+	CloseHandle(pi.pi.hProcess);
+	CloseHandle(pi.pi.hThread);
+
+	return OK;
+};
+
+Error OS_Windows::create_process(const String &p_path, const List<String> &p_arguments, ProcessID *r_child_id) {
+	String path = p_path.replace("/", "\\");
+	String command = _quote_command_line_argument(path);
+	for (const String &E : p_arguments) {
+		command += " " + _quote_command_line_argument(E);
+	}
+
+	ProcessInfo pi;
+	ZeroMemory(&pi.si, sizeof(pi.si));
+	pi.si.cb = sizeof(pi.si);
+	ZeroMemory(&pi.pi, sizeof(pi.pi));
+	LPSTARTUPINFOW si_w = (LPSTARTUPINFOW)&pi.si;
+
+	int ret = CreateProcessW(nullptr, (LPWSTR)(command.utf16().ptrw()), nullptr, nullptr, false, NORMAL_PRIORITY_CLASS & CREATE_NO_WINDOW, nullptr, nullptr, si_w, &pi.pi);
+	ERR_FAIL_COND_V_MSG(ret == 0, ERR_CANT_FORK, "Could not create child process: " + command);
+
+	ProcessID pid = pi.pi.dwProcessId;
+	if (r_child_id) {
+		*r_child_id = pid;
+	}
+	process_map->insert(pid, pi);
+
 	return OK;
 };
 
@@ -552,8 +553,27 @@ String OS_Windows::get_stdin_string(bool p_block) {
 }
 
 Error OS_Windows::shell_open(String p_uri) {
-	ShellExecuteW(nullptr, nullptr, (LPCWSTR)(p_uri.utf16().get_data()), nullptr, nullptr, SW_SHOWNORMAL);
-	return OK;
+	INT_PTR ret = (INT_PTR)ShellExecuteW(nullptr, nullptr, (LPCWSTR)(p_uri.utf16().get_data()), nullptr, nullptr, SW_SHOWNORMAL);
+	if (ret > 32) {
+		return OK;
+	} else {
+		switch (ret) {
+			case ERROR_FILE_NOT_FOUND:
+			case SE_ERR_DLLNOTFOUND:
+				return ERR_FILE_NOT_FOUND;
+			case ERROR_PATH_NOT_FOUND:
+				return ERR_FILE_BAD_PATH;
+			case ERROR_BAD_FORMAT:
+				return ERR_FILE_CORRUPT;
+			case SE_ERR_ACCESSDENIED:
+				return ERR_UNAUTHORIZED;
+			case 0:
+			case SE_ERR_OOM:
+				return ERR_OUT_OF_MEMORY;
+			default:
+				return FAILED;
+		}
+	}
 }
 
 String OS_Windows::get_locale() const {
@@ -614,7 +634,7 @@ void OS_Windows::run() {
 	if (!main_loop)
 		return;
 
-	main_loop->init();
+	main_loop->initialize();
 
 	while (!force_quit) {
 		DisplayServer::get_singleton()->process_events(); // get rid of pending events
@@ -622,7 +642,7 @@ void OS_Windows::run() {
 			break;
 	};
 
-	main_loop->finish();
+	main_loop->finalize();
 }
 
 MainLoop *OS_Windows::get_main_loop() const {
@@ -630,31 +650,54 @@ MainLoop *OS_Windows::get_main_loop() const {
 }
 
 String OS_Windows::get_config_path() const {
-	if (has_environment("XDG_CONFIG_HOME")) { // unlikely, but after all why not?
-		return get_environment("XDG_CONFIG_HOME");
-	} else if (has_environment("APPDATA")) {
-		return get_environment("APPDATA");
-	} else {
-		return ".";
+	// The XDG Base Directory specification technically only applies on Linux/*BSD, but it doesn't hurt to support it on Windows as well.
+	if (has_environment("XDG_CONFIG_HOME")) {
+		if (get_environment("XDG_CONFIG_HOME").is_absolute_path()) {
+			return get_environment("XDG_CONFIG_HOME").replace("\\", "/");
+		} else {
+			WARN_PRINT_ONCE("`XDG_CONFIG_HOME` is a relative path. Ignoring its value and falling back to `%APPDATA%` or `.` per the XDG Base Directory specification.");
+		}
 	}
+	if (has_environment("APPDATA")) {
+		return get_environment("APPDATA").replace("\\", "/");
+	}
+	return ".";
 }
 
 String OS_Windows::get_data_path() const {
+	// The XDG Base Directory specification technically only applies on Linux/*BSD, but it doesn't hurt to support it on Windows as well.
 	if (has_environment("XDG_DATA_HOME")) {
-		return get_environment("XDG_DATA_HOME");
-	} else {
-		return get_config_path();
+		if (get_environment("XDG_DATA_HOME").is_absolute_path()) {
+			return get_environment("XDG_DATA_HOME").replace("\\", "/");
+		} else {
+			WARN_PRINT_ONCE("`XDG_DATA_HOME` is a relative path. Ignoring its value and falling back to `get_config_path()` per the XDG Base Directory specification.");
+		}
 	}
+	return get_config_path();
 }
 
 String OS_Windows::get_cache_path() const {
-	if (has_environment("XDG_CACHE_HOME")) {
-		return get_environment("XDG_CACHE_HOME");
-	} else if (has_environment("TEMP")) {
-		return get_environment("TEMP");
-	} else {
-		return get_config_path();
+	static String cache_path_cache;
+	if (cache_path_cache.is_empty()) {
+		// The XDG Base Directory specification technically only applies on Linux/*BSD, but it doesn't hurt to support it on Windows as well.
+		if (has_environment("XDG_CACHE_HOME")) {
+			if (get_environment("XDG_CACHE_HOME").is_absolute_path()) {
+				cache_path_cache = get_environment("XDG_CACHE_HOME").replace("\\", "/");
+			} else {
+				WARN_PRINT_ONCE("`XDG_CACHE_HOME` is a relative path. Ignoring its value and falling back to `%LOCALAPPDATA%\\cache`, `%TEMP%` or `get_config_path()` per the XDG Base Directory specification.");
+			}
+		}
+		if (cache_path_cache.is_empty() && has_environment("LOCALAPPDATA")) {
+			cache_path_cache = get_environment("LOCALAPPDATA").replace("\\", "/");
+		}
+		if (cache_path_cache.is_empty() && has_environment("TEMP")) {
+			cache_path_cache = get_environment("TEMP").replace("\\", "/");
+		}
+		if (cache_path_cache.is_empty()) {
+			cache_path_cache = get_config_path();
+		}
 	}
+	return cache_path_cache;
 }
 
 // Get properly capitalized engine name for system paths
@@ -662,7 +705,7 @@ String OS_Windows::get_godot_dir_name() const {
 	return String(VERSION_SHORT_NAME).capitalize();
 }
 
-String OS_Windows::get_system_dir(SystemDir p_dir) const {
+String OS_Windows::get_system_dir(SystemDir p_dir, bool p_shared_storage) const {
 	KNOWNFOLDERID id;
 
 	switch (p_dir) {
@@ -695,7 +738,7 @@ String OS_Windows::get_system_dir(SystemDir p_dir) const {
 	PWSTR szPath;
 	HRESULT res = SHGetKnownFolderPath(id, 0, nullptr, &szPath);
 	ERR_FAIL_COND_V(res != S_OK, String());
-	String path = String::utf16((const char16_t *)szPath);
+	String path = String::utf16((const char16_t *)szPath).replace("\\", "/");
 	CoTaskMemFree(szPath);
 	return path;
 }
@@ -764,76 +807,11 @@ Error OS_Windows::move_to_trash(const String &p_path) {
 	return OK;
 }
 
-int OS_Windows::get_tablet_driver_count() const {
-	return tablet_drivers.size();
-}
-
-String OS_Windows::get_tablet_driver_name(int p_driver) const {
-	if (p_driver < 0 || p_driver >= tablet_drivers.size()) {
-		return "";
-	} else {
-		return tablet_drivers[p_driver];
-	}
-}
-
-String OS_Windows::get_current_tablet_driver() const {
-	return tablet_driver;
-}
-
-void OS_Windows::set_current_tablet_driver(const String &p_driver) {
-	if (get_tablet_driver_count() == 0) {
-		return;
-	}
-	bool found = false;
-	for (int i = 0; i < get_tablet_driver_count(); i++) {
-		if (p_driver == get_tablet_driver_name(i)) {
-			found = true;
-		}
-	}
-	if (found) {
-		if (DisplayServerWindows::get_singleton()) {
-			((DisplayServerWindows *)DisplayServerWindows::get_singleton())->_update_tablet_ctx(tablet_driver, p_driver);
-		}
-		tablet_driver = p_driver;
-	} else {
-		ERR_PRINT("Unknown tablet driver " + p_driver + ".");
-	}
-}
-
 OS_Windows::OS_Windows(HINSTANCE _hInstance) {
 	ticks_per_second = 0;
 	ticks_start = 0;
 	main_loop = nullptr;
 	process_map = nullptr;
-
-	//Note: Wacom WinTab driver API for pen input, for devices incompatible with Windows Ink.
-	HMODULE wintab_lib = LoadLibraryW(L"wintab32.dll");
-	if (wintab_lib) {
-		DisplayServerWindows::wintab_WTOpen = (WTOpenPtr)GetProcAddress(wintab_lib, "WTOpenW");
-		DisplayServerWindows::wintab_WTClose = (WTClosePtr)GetProcAddress(wintab_lib, "WTClose");
-		DisplayServerWindows::wintab_WTInfo = (WTInfoPtr)GetProcAddress(wintab_lib, "WTInfoW");
-		DisplayServerWindows::wintab_WTPacket = (WTPacketPtr)GetProcAddress(wintab_lib, "WTPacket");
-		DisplayServerWindows::wintab_WTEnable = (WTEnablePtr)GetProcAddress(wintab_lib, "WTEnable");
-
-		DisplayServerWindows::wintab_available = DisplayServerWindows::wintab_WTOpen && DisplayServerWindows::wintab_WTClose && DisplayServerWindows::wintab_WTInfo && DisplayServerWindows::wintab_WTPacket && DisplayServerWindows::wintab_WTEnable;
-	}
-
-	if (DisplayServerWindows::wintab_available) {
-		tablet_drivers.push_back("wintab");
-	}
-
-	//Note: Windows Ink API for pen input, available on Windows 8+ only.
-	HMODULE user32_lib = LoadLibraryW(L"user32.dll");
-	if (user32_lib) {
-		DisplayServerWindows::win8p_GetPointerType = (GetPointerTypePtr)GetProcAddress(user32_lib, "GetPointerType");
-		DisplayServerWindows::win8p_GetPointerPenInfo = (GetPointerPenInfoPtr)GetProcAddress(user32_lib, "GetPointerPenInfo");
-
-		DisplayServerWindows::winink_available = DisplayServerWindows::win8p_GetPointerType && DisplayServerWindows::win8p_GetPointerPenInfo;
-	}
-
-	if (DisplayServerWindows::winink_available) {
-		tablet_drivers.push_back("winink");
-	}
 
 	force_quit = false;
 

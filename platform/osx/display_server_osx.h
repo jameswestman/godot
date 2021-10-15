@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -60,6 +60,10 @@ class DisplayServerOSX : public DisplayServer {
 	_THREAD_SAFE_CLASS_
 
 public:
+	void _send_event(NSEvent *p_event);
+	NSMenu *_get_dock_menu() const;
+	void _menu_callback(id p_sender);
+
 #if defined(OPENGL_ENABLED)
 	ContextGL_OSX *context_gles2;
 #endif
@@ -81,7 +85,7 @@ public:
 		bool pressed = false;
 		bool echo = false;
 		bool raw = false;
-		uint32_t keycode = 0;
+		Key keycode = KEY_NONE;
 		uint32_t physical_keycode = 0;
 		uint32_t unicode = 0;
 	};
@@ -93,6 +97,7 @@ public:
 
 	List<WarpEvent> warp_events;
 	NSTimeInterval last_warp = 0;
+	bool ignore_warp = false;
 
 	Vector<KeyEvent> key_event_buffer;
 	int key_event_pos;
@@ -144,7 +149,7 @@ public:
 
 	WindowID window_id_counter = MAIN_WINDOW_ID;
 
-	WindowID _create_window(WindowMode p_mode, const Rect2i &p_rect);
+	WindowID _create_window(WindowMode p_mode, VSyncMode p_vsync_mode, const Rect2i &p_rect);
 	void _update_window(WindowData p_wd);
 	void _send_window_event(const WindowData &wd, WindowEvent p_event);
 	static void _dispatch_input_events(const Ref<InputEvent> &p_event);
@@ -162,7 +167,6 @@ public:
 
 	String rendering_driver;
 
-	id delegate;
 	id autoreleasePool;
 	CGEventSourceRef eventSource;
 
@@ -172,7 +176,7 @@ public:
 
 	MouseMode mouse_mode;
 	Point2i last_mouse_pos;
-	uint32_t last_button_state;
+	MouseButton last_button_state = MOUSE_BUTTON_NONE;
 
 	bool window_focused;
 	bool drop_events;
@@ -206,7 +210,6 @@ public:
 	virtual void global_menu_remove_item(const String &p_menu_root, int p_idx) override;
 	virtual void global_menu_clear(const String &p_menu_root) override;
 
-	virtual void alert(const String &p_alert, const String &p_title = "ALERT!") override;
 	virtual Error dialog_show(String p_title, String p_description, Vector<String> p_buttons, const Callable &p_callback) override;
 	virtual Error dialog_input_text(String p_title, String p_description, String p_partial, const Callable &p_callback) override;
 
@@ -216,7 +219,7 @@ public:
 	virtual void mouse_warp_to_position(const Point2i &p_to) override;
 	virtual Point2i mouse_get_position() const override;
 	virtual Point2i mouse_get_absolute_position() const override;
-	virtual int mouse_get_button_state() const override;
+	virtual MouseButton mouse_get_button_state() const override;
 
 	virtual void clipboard_set(const String &p_text) override;
 	virtual String clipboard_get() const override;
@@ -231,7 +234,7 @@ public:
 
 	virtual Vector<int> get_window_list() const override;
 
-	virtual WindowID create_sub_window(WindowMode p_mode, uint32_t p_flags, const Rect2i &p_rect = Rect2i()) override;
+	virtual WindowID create_sub_window(WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Rect2i &p_rect = Rect2i()) override;
 	virtual void show_window(WindowID p_id) override;
 	virtual void delete_sub_window(WindowID p_id) override;
 
@@ -285,6 +288,9 @@ public:
 	virtual void window_attach_instance_id(ObjectID p_instance, WindowID p_window = MAIN_WINDOW_ID) override;
 	virtual ObjectID window_get_attached_instance_id(WindowID p_window = MAIN_WINDOW_ID) const override;
 
+	virtual void window_set_vsync_mode(DisplayServer::VSyncMode p_vsync_mode, WindowID p_window = MAIN_WINDOW_ID) override;
+	virtual DisplayServer::VSyncMode window_get_vsync_mode(WindowID p_vsync_mode) const override;
+
 	virtual Point2i ime_get_selection() const override;
 	virtual String ime_get_text() const override;
 
@@ -299,6 +305,7 @@ public:
 	virtual void keyboard_set_current_layout(int p_index) override;
 	virtual String keyboard_get_layout_language(int p_index) const override;
 	virtual String keyboard_get_layout_name(int p_index) const override;
+	virtual Key keyboard_get_keycode_from_physical(Key p_keycode) const override;
 
 	virtual void process_events() override;
 	virtual void force_process_and_drop_events() override;
@@ -313,12 +320,12 @@ public:
 	virtual void console_set_visible(bool p_enabled) override;
 	virtual bool is_console_visible() const override;
 
-	static DisplayServer *create_func(const String &p_rendering_driver, WindowMode p_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
+	static DisplayServer *create_func(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
 	static Vector<String> get_rendering_drivers_func();
 
 	static void register_osx_driver();
 
-	DisplayServerOSX(const String &p_rendering_driver, WindowMode p_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
+	DisplayServerOSX(const String &p_rendering_driver, WindowMode p_mode, VSyncMode p_vsync_mode, uint32_t p_flags, const Vector2i &p_resolution, Error &r_error);
 	~DisplayServerOSX();
 };
 

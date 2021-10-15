@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -78,7 +78,7 @@ Error ResourceImporterBitMap::import(const String &p_source_file, const String &
 	int create_from = p_options["create_from"];
 	float threshold = p_options["threshold"];
 	Ref<Image> image;
-	image.instance();
+	image.instantiate();
 	Error err = ImageLoader::load_image(p_source_file, image);
 	if (err != OK) {
 		return err;
@@ -88,7 +88,7 @@ Error ResourceImporterBitMap::import(const String &p_source_file, const String &
 	int h = image->get_height();
 
 	Ref<BitMap> bitmap;
-	bitmap.instance();
+	bitmap.instantiate();
 	bitmap->create(Size2(w, h));
 
 	for (int i = 0; i < h; i++) {

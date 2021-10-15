@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -66,6 +66,18 @@ TScriptInstance *cast_script_instance(ScriptInstance *p_inst) {
 
 #define CAST_CSHARP_INSTANCE(m_inst) (cast_script_instance<CSharpInstance, CSharpLanguage>(m_inst))
 
+struct DotNetScriptLookupInfo {
+	String class_namespace;
+	String class_name;
+	GDMonoClass *script_class = nullptr;
+
+	DotNetScriptLookupInfo() {} // Required by HashMap...
+
+	DotNetScriptLookupInfo(const String &p_class_namespace, const String &p_class_name, GDMonoClass *p_script_class) :
+			class_namespace(p_class_namespace), class_name(p_class_name), script_class(p_script_class) {
+	}
+};
+
 class CSharpScript : public Script {
 	GDCLASS(CSharpScript, Script);
 
@@ -124,8 +136,7 @@ private:
 	Map<StringName, EventSignal> event_signals;
 	bool signals_invalidated = true;
 
-	Vector<ScriptNetData> rpc_functions;
-	Vector<ScriptNetData> rpc_variables;
+	Vector<Multiplayer::RPCConfig> rpc_functions;
 
 #ifdef TOOLS_ENABLED
 	List<PropertyInfo> exported_members_cache; // members_cache
@@ -152,14 +163,14 @@ private:
 	void load_script_signals(GDMonoClass *p_class, GDMonoClass *p_native_class);
 	bool _get_signal(GDMonoClass *p_class, GDMonoMethod *p_delegate_invoke, Vector<SignalParameter> &params);
 
-	bool _update_exports();
+	bool _update_exports(PlaceHolderScriptInstance *p_instance_to_update = nullptr);
 
 	bool _get_member_export(IMonoClassMember *p_member, bool p_inspect_export, PropertyInfo &r_prop_info, bool &r_exported);
 #ifdef TOOLS_ENABLED
 	static int _try_get_member_export_hint(IMonoClassMember *p_member, ManagedType p_type, Variant::Type p_variant_type, bool p_allow_generics, PropertyHint &r_hint, String &r_hint_string);
 #endif
 
-	CSharpInstance *_create_instance(const Variant **p_args, int p_argcount, Object *p_owner, bool p_isref, Callable::CallError &r_error);
+	CSharpInstance *_create_instance(const Variant **p_args, int p_argcount, Object *p_owner, bool p_is_ref_counted, Callable::CallError &r_error);
 	Variant _new(const Variant **p_args, int p_argcount, Callable::CallError &r_error);
 
 	// Do not use unless you know what you are doing
@@ -168,7 +179,7 @@ private:
 	static void update_script_class_info(Ref<CSharpScript> p_script);
 	static void initialize_for_managed_type(Ref<CSharpScript> p_script, GDMonoClass *p_class, GDMonoClass *p_native);
 
-	MultiplayerAPI::RPCMode _member_get_rpc_mode(IMonoClassMember *p_member) const;
+	Multiplayer::RPCMode _member_get_rpc_mode(IMonoClassMember *p_member) const;
 
 protected:
 	static void _bind_methods();
@@ -180,7 +191,7 @@ protected:
 	void _get_property_list(List<PropertyInfo> *p_properties) const;
 
 public:
-	bool can_instance() const override;
+	bool can_instantiate() const override;
 	StringName get_instance_base_type() const override;
 	ScriptInstance *instance_create(Object *p_this) override;
 	PlaceHolderScriptInstance *placeholder_instance_create(Object *p_this) override;
@@ -223,17 +234,7 @@ public:
 
 	int get_member_line(const StringName &p_member) const override;
 
-	Vector<ScriptNetData> get_rpc_methods() const override;
-	uint16_t get_rpc_method_id(const StringName &p_method) const override;
-	StringName get_rpc_method(const uint16_t p_rpc_method_id) const override;
-	MultiplayerAPI::RPCMode get_rpc_mode_by_id(const uint16_t p_rpc_method_id) const override;
-	MultiplayerAPI::RPCMode get_rpc_mode(const StringName &p_method) const override;
-
-	Vector<ScriptNetData> get_rset_properties() const override;
-	uint16_t get_rset_property_id(const StringName &p_variable) const override;
-	StringName get_rset_property(const uint16_t p_variable_id) const override;
-	MultiplayerAPI::RPCMode get_rset_mode_by_id(const uint16_t p_variable_id) const override;
-	MultiplayerAPI::RPCMode get_rset_mode(const StringName &p_variable) const override;
+	const Vector<Multiplayer::RPCConfig> get_rpc_methods() const override;
 
 #ifdef TOOLS_ENABLED
 	bool is_placeholder_fallback_enabled() const override { return placeholder_fallback_enabled; }
@@ -250,7 +251,7 @@ class CSharpInstance : public ScriptInstance {
 	friend class CSharpLanguage;
 
 	Object *owner = nullptr;
-	bool base_ref = false;
+	bool base_ref_counted = false;
 	bool ref_dying = false;
 	bool unsafe_referenced = false;
 	bool predelete_notified = false;
@@ -258,6 +259,8 @@ class CSharpInstance : public ScriptInstance {
 
 	Ref<CSharpScript> script;
 	MonoGCHandleData gchandle;
+
+	List<Callable> connected_event_signals;
 
 	bool _reference_owner_unsafe();
 
@@ -290,7 +293,7 @@ public:
 	void get_property_list(List<PropertyInfo> *p_properties) const override;
 	Variant::Type get_property_type(const StringName &p_name, bool *r_is_valid) const override;
 
-	/* TODO */ void get_method_list(List<MethodInfo> *p_list) const override {}
+	void get_method_list(List<MethodInfo> *p_list) const override;
 	bool has_method(const StringName &p_method) const override;
 	Variant call(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override;
 
@@ -308,17 +311,7 @@ public:
 	void refcount_incremented() override;
 	bool refcount_decremented() override;
 
-	Vector<ScriptNetData> get_rpc_methods() const override;
-	uint16_t get_rpc_method_id(const StringName &p_method) const override;
-	StringName get_rpc_method(const uint16_t p_rpc_method_id) const override;
-	MultiplayerAPI::RPCMode get_rpc_mode_by_id(const uint16_t p_rpc_method_id) const override;
-	MultiplayerAPI::RPCMode get_rpc_mode(const StringName &p_method) const override;
-
-	Vector<ScriptNetData> get_rset_properties() const override;
-	uint16_t get_rset_property_id(const StringName &p_variable) const override;
-	StringName get_rset_property(const uint16_t p_variable_id) const override;
-	MultiplayerAPI::RPCMode get_rset_mode_by_id(const uint16_t p_variable_id) const override;
-	MultiplayerAPI::RPCMode get_rset_mode(const StringName &p_variable) const override;
+	const Vector<Multiplayer::RPCConfig> get_rpc_methods() const override;
 
 	void notification(int p_notification) override;
 	void _call_notification(int p_notification);
@@ -390,15 +383,14 @@ class CSharpLanguage : public ScriptLanguage {
 
 	int lang_idx = -1;
 
-	Dictionary scripts_metadata;
-	bool scripts_metadata_invalidated = true;
+	HashMap<String, DotNetScriptLookupInfo> dotnet_script_lookup_map;
+
+	void lookup_script_for_class(GDMonoClass *p_class);
 
 	// For debug_break and debug_break_parse
 	int _debug_parse_err_line = -1;
 	String _debug_parse_err_file;
 	String _debug_error;
-
-	void _load_scripts_metadata();
 
 	friend class GDMono;
 	void _on_scripts_domain_unloaded();
@@ -409,7 +401,18 @@ class CSharpLanguage : public ScriptLanguage {
 	static void _editor_init_callback();
 #endif
 
+	static void *_instance_binding_create_callback(void *p_token, void *p_instance);
+	static void _instance_binding_free_callback(void *p_token, void *p_instance, void *p_binding);
+	static GDNativeBool _instance_binding_reference_callback(void *p_token, void *p_binding, GDNativeBool p_reference);
+
+	static GDNativeInstanceBindingCallbacks _instance_binding_callbacks;
+
 public:
+	static void *get_instance_binding(Object *p_object);
+	static void *get_existing_instance_binding(Object *p_object);
+	static void set_instance_binding(Object *p_object, void *p_binding);
+	static bool has_instance_binding(Object *p_object);
+
 	StringNameCache string_names;
 
 	const Mutex &get_language_bind_mutex() { return language_bind_mutex; }
@@ -436,18 +439,13 @@ public:
 	void reload_assemblies(bool p_soft_reload);
 #endif
 
-	_FORCE_INLINE_ Dictionary get_scripts_metadata_or_nothing() {
-		return scripts_metadata_invalidated ? Dictionary() : scripts_metadata;
-	}
-
-	_FORCE_INLINE_ const Dictionary &get_scripts_metadata() {
-		if (scripts_metadata_invalidated) {
-			_load_scripts_metadata();
-		}
-		return scripts_metadata;
-	}
-
 	_FORCE_INLINE_ ManagedCallableMiddleman *get_managed_callable_middleman() const { return managed_callable_middleman; }
+
+	void lookup_scripts_in_assembly(GDMonoAssembly *p_assembly);
+
+	const DotNetScriptLookupInfo *lookup_dotnet_script(const String &p_script_path) const {
+		return dotnet_script_lookup_map.getptr(p_script_path);
+	}
 
 	String get_name() const override;
 
@@ -462,14 +460,14 @@ public:
 
 	/* EDITOR FUNCTIONS */
 	void get_reserved_words(List<String> *p_words) const override;
+	bool is_control_flow_keyword(String p_keyword) const override;
 	void get_comment_delimiters(List<String> *p_delimiters) const override;
 	void get_string_delimiters(List<String> *p_delimiters) const override;
 	Ref<Script> get_template(const String &p_class_name, const String &p_base_class_name) const override;
 	bool is_using_templates() override;
 	void make_template(const String &p_class_name, const String &p_base_class_name, Ref<Script> &p_script) override;
-	/* TODO */ bool validate(const String &p_script, int &r_line_error, int &r_col_error,
-			String &r_test_error, const String &p_path, List<String> *r_functions,
-			List<ScriptLanguage::Warning> *r_warnings = nullptr, Set<int> *r_safe_lines = nullptr) const override {
+	/* TODO */ bool validate(const String &p_script, const String &p_path, List<String> *r_functions,
+			List<ScriptLanguage::ScriptError> *r_errors = nullptr, List<ScriptLanguage::Warning> *r_warnings = nullptr, Set<int> *r_safe_lines = nullptr) const override {
 		return true;
 	}
 	String validate_path(const String &p_path) const override;
@@ -520,12 +518,6 @@ public:
 	void thread_enter() override;
 	void thread_exit() override;
 
-	// Don't use these. I'm watching you
-	void *alloc_instance_binding_data(Object *p_object) override;
-	void free_instance_binding_data(void *p_data) override;
-	void refcount_incremented_instance_binding(Object *p_object) override;
-	bool refcount_decremented_instance_binding(Object *p_object) override;
-
 	Map<Object *, CSharpScriptBinding>::Element *insert_script_binding(Object *p_object, const CSharpScriptBinding &p_script_binding);
 	bool setup_csharp_script_binding(CSharpScriptBinding &r_script_binding, Object *p_object);
 
@@ -542,7 +534,7 @@ public:
 
 class ResourceFormatLoaderCSharpScript : public ResourceFormatLoader {
 public:
-	RES load(const String &p_path, const String &p_original_path = "", Error *r_error = nullptr, bool p_use_sub_threads = false, float *r_progress = nullptr, bool p_no_cache = false) override;
+	RES load(const String &p_path, const String &p_original_path = "", Error *r_error = nullptr, bool p_use_sub_threads = false, float *r_progress = nullptr, CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
 	void get_recognized_extensions(List<String> *p_extensions) const override;
 	bool handles_type(const String &p_type) const override;
 	String get_resource_type(const String &p_path) const override;

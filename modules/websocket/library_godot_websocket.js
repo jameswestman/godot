@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -101,6 +101,15 @@ const GodotWebSocket = {
 			return 0;
 		},
 
+		// Get current bufferedAmount
+		bufferedAmount: function (p_id) {
+			const ref = IDHandler.get(p_id);
+			if (!ref) {
+				return 0; // Godot object is gone.
+			}
+			return ref.bufferedAmount;
+		},
+
 		create: function (socket, p_on_open, p_on_message, p_on_error, p_on_close) {
 			const id = IDHandler.add(socket);
 			socket.onopen = GodotWebSocket._onopen.bind(null, id, p_on_open);
@@ -169,6 +178,11 @@ const GodotWebSocket = {
 			out = new TextDecoder('utf-8').decode(bytes_array);
 		}
 		return GodotWebSocket.send(p_id, out);
+	},
+
+	godot_js_websocket_buffered_amount__sig: 'ii',
+	godot_js_websocket_buffered_amount: function (p_id) {
+		return GodotWebSocket.bufferedAmount(p_id);
 	},
 
 	godot_js_websocket_close__sig: 'viii',

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,7 +32,6 @@
 
 #include "core/config/project_settings.h"
 #include "core/io/zip_io.h"
-#include "core/os/copymem.h"
 
 #include "thirdparty/misc/fastlz.h"
 
@@ -44,8 +43,8 @@ int Compression::compress(uint8_t *p_dst, const uint8_t *p_src, int p_src_size, 
 		case MODE_FASTLZ: {
 			if (p_src_size < 16) {
 				uint8_t src[16];
-				zeromem(&src[p_src_size], 16 - p_src_size);
-				copymem(src, p_src, p_src_size);
+				memset(&src[p_src_size], 0, 16 - p_src_size);
+				memcpy(src, p_src, p_src_size);
 				return fastlz_compress(src, 16, p_dst);
 			} else {
 				return fastlz_compress(p_src, p_src_size, p_dst);
@@ -135,8 +134,9 @@ int Compression::decompress(uint8_t *p_dst, int p_dst_max_size, const uint8_t *p
 
 			if (p_dst_max_size < 16) {
 				uint8_t dst[16];
-				ret_size = fastlz_decompress(p_src, p_src_size, dst, 16);
-				copymem(p_dst, dst, p_dst_max_size);
+				fastlz_decompress(p_src, p_src_size, dst, 16);
+				memcpy(p_dst, dst, p_dst_max_size);
+				ret_size = p_dst_max_size;
 			} else {
 				ret_size = fastlz_decompress(p_src, p_src_size, p_dst, p_dst_max_size);
 			}
@@ -181,8 +181,8 @@ int Compression::decompress(uint8_t *p_dst, int p_dst_max_size, const uint8_t *p
 }
 
 /**
-	This will handle both Gzip and Deflat streams. It will automatically allocate the output buffer into the provided p_dst_vect Vector.
-	This is required for compressed data who's final uncompressed size is unknown, as is the case for HTTP response bodies.
+	This will handle both Gzip and Deflate streams. It will automatically allocate the output buffer into the provided p_dst_vect Vector.
+	This is required for compressed data whose final uncompressed size is unknown, as is the case for HTTP response bodies.
 	This is much slower however than using Compression::decompress because it may result in multiple full copies of the output buffer.
 */
 int Compression::decompress_dynamic(Vector<uint8_t> *p_dst_vect, int p_max_dst_size, const uint8_t *p_src, int p_src_size, Mode p_mode) {
@@ -239,7 +239,10 @@ int Compression::decompress_dynamic(Vector<uint8_t> *p_dst_vect, int p_max_dst_s
 				case Z_DATA_ERROR:
 				case Z_MEM_ERROR:
 				case Z_STREAM_ERROR:
-					WARN_PRINT(strm.msg);
+				case Z_BUF_ERROR:
+					if (strm.msg) {
+						WARN_PRINT(strm.msg);
+					}
 					(void)inflateEnd(&strm);
 					p_dst_vect->resize(0);
 					return ret;
@@ -248,7 +251,7 @@ int Compression::decompress_dynamic(Vector<uint8_t> *p_dst_vect, int p_max_dst_s
 
 		out_mark += gzip_chunk;
 
-		// Encorce max output size
+		// Enforce max output size
 		if (p_max_dst_size > -1 && strm.total_out > (uint64_t)p_max_dst_size) {
 			(void)inflateEnd(&strm);
 			p_dst_vect->resize(0);

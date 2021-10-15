@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,10 +30,12 @@
 
 #include "resource_importer_obj.h"
 
+#include "core/io/file_access.h"
 #include "core/io/resource_saver.h"
-#include "core/os/file_access.h"
+#include "scene/3d/importer_mesh_instance_3d.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/node_3d.h"
+#include "scene/resources/importer_mesh.h"
 #include "scene/resources/mesh.h"
 #include "scene/resources/surface_tool.h"
 
@@ -55,7 +57,7 @@ static Error _parse_material_library(const String &p_path, Map<String, Ref<Stand
 			//vertex
 
 			current_name = l.replace("newmtl", "").strip_edges();
-			current.instance();
+			current.instantiate();
 			current->set_name(current_name);
 			material_map[current_name] = current;
 		} else if (l.begins_with("Ka ")) {
@@ -124,7 +126,7 @@ static Error _parse_material_library(const String &p_path, Map<String, Ref<Stand
 
 			String p = l.replace("map_Kd", "").replace("\\", "/").strip_edges();
 			String path;
-			if (p.is_abs_path()) {
+			if (p.is_absolute_path()) {
 				path = p;
 			} else {
 				path = base_path.plus_file(p);
@@ -144,7 +146,7 @@ static Error _parse_material_library(const String &p_path, Map<String, Ref<Stand
 
 			String p = l.replace("map_Ks", "").replace("\\", "/").strip_edges();
 			String path;
-			if (p.is_abs_path()) {
+			if (p.is_absolute_path()) {
 				path = p;
 			} else {
 				path = base_path.plus_file(p);
@@ -164,7 +166,7 @@ static Error _parse_material_library(const String &p_path, Map<String, Ref<Stand
 
 			String p = l.replace("map_Ns", "").replace("\\", "/").strip_edges();
 			String path;
-			if (p.is_abs_path()) {
+			if (p.is_absolute_path()) {
 				path = p;
 			} else {
 				path = base_path.plus_file(p);
@@ -205,7 +207,7 @@ static Error _parse_obj(const String &p_path, List<Ref<Mesh>> &r_meshes, bool p_
 	ERR_FAIL_COND_V_MSG(!f, ERR_CANT_OPEN, vformat("Couldn't open OBJ file '%s', it may not exist or not be readable.", p_path));
 
 	Ref<ArrayMesh> mesh;
-	mesh.instance();
+	mesh.instantiate();
 
 	bool generate_tangents = p_generate_tangents;
 	Vector3 scale_mesh = p_scale_mesh;
@@ -376,7 +378,7 @@ static Error _parse_obj(const String &p_path, List<Ref<Mesh>> &r_meshes, bool p_
 				if (!p_single_mesh) {
 					mesh->set_name(name);
 					r_meshes.push_back(mesh);
-					mesh.instance();
+					mesh.instantiate();
 					current_group = "";
 					current_material = "";
 				}
@@ -425,7 +427,7 @@ static Error _parse_obj(const String &p_path, List<Ref<Mesh>> &r_meshes, bool p_
 Node *EditorOBJImporter::import_scene(const String &p_path, uint32_t p_flags, int p_bake_fps, List<String> *r_missing_deps, Error *r_err) {
 	List<Ref<Mesh>> meshes;
 
-	Error err = _parse_obj(p_path, meshes, false, p_flags & IMPORT_GENERATE_TANGENT_ARRAYS, p_flags & IMPORT_USE_COMPRESSION, Vector3(1, 1, 1), Vector3(0, 0, 0), r_missing_deps);
+	Error err = _parse_obj(p_path, meshes, false, p_flags & IMPORT_GENERATE_TANGENT_ARRAYS, false, Vector3(1, 1, 1), Vector3(0, 0, 0), r_missing_deps);
 
 	if (err != OK) {
 		if (r_err) {
@@ -436,17 +438,16 @@ Node *EditorOBJImporter::import_scene(const String &p_path, uint32_t p_flags, in
 
 	Node3D *scene = memnew(Node3D);
 
-	for (List<Ref<Mesh>>::Element *E = meshes.front(); E; E = E->next()) {
-		Ref<EditorSceneImporterMesh> mesh;
-		mesh.instance();
-		Ref<Mesh> m = E->get();
+	for (const Ref<Mesh> &m : meshes) {
+		Ref<ImporterMesh> mesh;
+		mesh.instantiate();
 		for (int i = 0; i < m->get_surface_count(); i++) {
 			mesh->add_surface(m->surface_get_primitive_type(i), m->surface_get_arrays(i), Array(), Dictionary(), m->surface_get_material(i));
 		}
 
-		EditorSceneImporterMeshNode *mi = memnew(EditorSceneImporterMeshNode);
+		ImporterMeshInstance3D *mi = memnew(ImporterMeshInstance3D);
 		mi->set_mesh(mesh);
-		mi->set_name(E->get()->get_name());
+		mi->set_name(m->get_name());
 		scene->add_child(mi);
 		mi->set_owner(scene);
 	}

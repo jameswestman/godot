@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,8 +31,9 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
+#include "core/io/resource_uid.h"
 #include "core/object/class_db.h"
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 #include "core/templates/safe_refcount.h"
 #include "core/templates/self_list.h"
 
@@ -43,8 +44,8 @@ public:                                                                         
                                                                                                                     \
 private:
 
-class Resource : public Reference {
-	GDCLASS(Resource, Reference);
+class Resource : public RefCounted {
+	GDCLASS(Resource, RefCounted);
 	OBJ_CATEGORY("Resources");
 
 public:
@@ -59,9 +60,7 @@ private:
 
 	String name;
 	String path_cache;
-	int subindex = 0;
-
-	virtual bool _use_builtin_script() const { return true; }
+	String scene_unique_id;
 
 #ifdef TOOLS_ENABLED
 	uint64_t last_modified_time = 0;
@@ -88,8 +87,12 @@ protected:
 
 public:
 	static Node *(*_get_local_scene_func)(); //used by editor
+	static void (*_update_configuration_warning)(); //used by editor
 
+	void update_configuration_warning();
 	virtual bool editor_can_reload_from_file();
+	virtual void reset_state(); //for resources that use variable amount of properties, either via _validate_property or _get_property_list, this function needs to be implemented to correctly clear state
+	virtual Error copy_from(const Ref<Resource> &p_resource);
 	virtual void reload_from_file();
 
 	void register_owner(Object *p_owner);
@@ -101,8 +104,9 @@ public:
 	virtual void set_path(const String &p_path, bool p_take_over = false);
 	String get_path() const;
 
-	void set_subindex(int p_sub_index);
-	int get_subindex() const;
+	static String generate_scene_unique_id();
+	void set_scene_unique_id(const String &p_id);
+	String get_scene_unique_id() const;
 
 	virtual Ref<Resource> duplicate(bool p_subresources = false) const;
 	Ref<Resource> duplicate_for_local_scene(Node *p_for_scene, Map<Ref<Resource>, Ref<Resource>> &remap_cache);
@@ -136,8 +140,8 @@ public:
 
 #ifdef TOOLS_ENABLED
 	//helps keep IDs same number when loading/saving scenes. -1 clears ID and it Returns -1 when no id stored
-	void set_id_for_path(const String &p_path, int p_id);
-	int get_id_for_path(const String &p_path) const;
+	void set_id_for_path(const String &p_path, const String &p_id);
+	String get_id_for_path(const String &p_path) const;
 #endif
 
 	Resource();
@@ -149,16 +153,15 @@ typedef Ref<Resource> RES;
 class ResourceCache {
 	friend class Resource;
 	friend class ResourceLoader; //need the lock
-	static RWLock *lock;
+	static RWLock lock;
 	static HashMap<String, Resource *> resources;
 #ifdef TOOLS_ENABLED
-	static HashMap<String, HashMap<String, int>> resource_path_cache; // each tscn has a set of resource paths and IDs
-	static RWLock *path_cache_lock;
+	static HashMap<String, HashMap<String, String>> resource_path_cache; // Each tscn has a set of resource paths and IDs.
+	static RWLock path_cache_lock;
 #endif // TOOLS_ENABLED
 	friend void unregister_core_types();
 	static void clear();
 	friend void register_core_types();
-	static void setup();
 
 public:
 	static void reload_externals();

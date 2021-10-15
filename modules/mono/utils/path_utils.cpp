@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,11 +31,12 @@
 #include "path_utils.h"
 
 #include "core/config/project_settings.h"
-#include "core/os/dir_access.h"
-#include "core/os/file_access.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/os/os.h"
 
 #ifdef WINDOWS_ENABLED
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #define ENV_PATH_SEP ";"
@@ -80,7 +81,7 @@ String cwd() {
 }
 
 String abspath(const String &p_path) {
-	if (p_path.is_abs_path()) {
+	if (p_path.is_absolute_path()) {
 		return p_path.simplify_path();
 	} else {
 		return path::join(path::cwd(), p_path).simplify_path();
@@ -136,7 +137,7 @@ String realpath(const String &p_path) {
 }
 
 String join(const String &p_a, const String &p_b) {
-	if (p_a.empty()) {
+	if (p_a.is_empty()) {
 		return p_b;
 	}
 
@@ -165,7 +166,7 @@ String relative_to_impl(const String &p_path, const String &p_relative_to) {
 	} else {
 		String base_dir = p_relative_to.get_base_dir();
 
-		if (base_dir.length() <= 2 && (base_dir.empty() || base_dir.ends_with(":"))) {
+		if (base_dir.length() <= 2 && (base_dir.is_empty() || base_dir.ends_with(":"))) {
 			return p_path;
 		}
 

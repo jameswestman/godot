@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -43,7 +43,7 @@
 #include "scene/gui/panel_container.h"
 #include "scene/gui/scroll_container.h"
 #include "scene/gui/slider.h"
-#include "scene/gui/texture_progress.h"
+#include "scene/gui/texture_progress_bar.h"
 #include "scene/gui/texture_rect.h"
 #include "scene/gui/tree.h"
 
@@ -66,8 +66,8 @@ class EditorAudioBus : public PanelContainer {
 		float peak_l = 0;
 		float peak_r = 0;
 
-		TextureProgress *vu_l = nullptr;
-		TextureProgress *vu_r = nullptr;
+		TextureProgressBar *vu_l = nullptr;
+		TextureProgressBar *vu_r = nullptr;
 	} channel[CHANNELS_MAX];
 
 	OptionButton *send;
@@ -90,7 +90,7 @@ class EditorAudioBus : public PanelContainer {
 	bool is_master;
 	mutable bool hovering_drop;
 
-	void _gui_input(const Ref<InputEvent> &p_event);
+	virtual void gui_input(const Ref<InputEvent> &p_event) override;
 	void _effects_gui_input(Ref<InputEvent> p_event);
 	void _bus_popup_pressed(int p_option);
 
@@ -243,10 +243,10 @@ private:
 	List<AudioNotch> notches;
 
 public:
-	float line_length = 5.0f;
-	float label_space = 2.0f;
-	float btm_padding = 9.0f;
-	float top_padding = 5.0f;
+	const float line_length = 5.0f;
+	const float label_space = 2.0f;
+	const float btm_padding = 9.0f;
+	const float top_padding = 5.0f;
 	Color notch_color;
 
 	void add_notch(float p_normalized_offset, float p_db_value, bool p_render_value = false);

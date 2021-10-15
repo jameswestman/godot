@@ -10,6 +10,7 @@ env_modules = env.Clone()
 Export("env_modules")
 
 # Header with MODULE_*_ENABLED defines.
+env.Depends("modules_enabled.gen.h", Value(env.module_list))
 env.CommandNoCache(
     "modules_enabled.gen.h",
     Value(env.module_list),
@@ -23,6 +24,7 @@ env.CommandNoCache(
 
 # Header to be included in `tests/test_main.cpp` to run module-specific tests.
 if env["tests"]:
+    env.Depends("modules_tests.gen.h", Value(env.module_list))
     env.CommandNoCache(
         "modules_tests.gen.h",
         Value(env.module_list),
@@ -44,18 +46,6 @@ for name, path in env.module_list.items():
         SConscript(name + "/SCsub")  # Built-in.
     else:
         SConscript(path + "/SCsub")  # Custom.
-
-    # Some modules are not linked automatically but can be enabled optionally
-    # on iOS, so we handle those specially.
-    if env["platform"] == "iphone" and name in [
-        "arkit",
-        "camera",
-        "camera_iphone",
-        "gamecenter",
-        "inappstore",
-        "icloud",
-    ]:
-        continue
 
     lib = env_modules.add_library("module_%s" % name, env.modules_sources)
     env.Prepend(LIBS=[lib])

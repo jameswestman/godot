@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -96,8 +96,8 @@ public:
 		};
 
 		float aspect = 1;
-		float z_near = 0.1;
-		float z_far = 100;
+		float z_near = 0.05;
+		float z_far = 4000;
 
 		CameraData() {}
 	};
@@ -182,7 +182,7 @@ public:
 		String base;
 		bool use_idrefs = false;
 
-		Transform bind_shape;
+		Transform3D bind_shape;
 
 		struct Source {
 			Vector<String> sarray; //maybe for names
@@ -210,7 +210,7 @@ public:
 			int count = 0;
 		} weights;
 
-		Map<String, Transform> bone_rest_map;
+		Map<String, Transform3D> bone_rest_map;
 
 		SkinControllerData() {}
 	};
@@ -274,7 +274,7 @@ public:
 					if (normal == p_vert.normal) {
 						if (uv == p_vert.uv) {
 							if (uv2 == p_vert.uv2) {
-								if (!weights.empty() || !p_vert.weights.empty()) {
+								if (!weights.is_empty() || !p_vert.weights.is_empty()) {
 									if (weights.size() == p_vert.weights.size()) {
 										for (int i = 0; i < weights.size(); i++) {
 											if (weights[i].bone_idx != p_vert.weights[i].bone_idx) {
@@ -342,15 +342,15 @@ public:
 		String empty_draw_type;
 		bool noname = false;
 		Vector<XForm> xform_list;
-		Transform default_transform;
-		Transform post_transform;
+		Transform3D default_transform;
+		Transform3D post_transform;
 		Vector<Node *> children;
 
 		Node *parent = nullptr;
 
-		Transform compute_transform(Collada &state) const;
-		Transform get_global_transform() const;
-		Transform get_transform() const;
+		Transform3D compute_transform(Collada &state) const;
+		Transform3D get_global_transform() const;
+		Transform3D get_transform() const;
 
 		bool ignore_anim = false;
 
@@ -497,7 +497,7 @@ public:
 		Map<String, String> sid_to_node_map;
 		//Map<String,NodeJoint*> bone_map;
 
-		Map<String, Transform> bone_rest_map;
+		Map<String, Transform3D> bone_rest_map;
 
 		String local_path;
 		String root_visual_scene;
@@ -517,9 +517,9 @@ public:
 
 	Collada();
 
-	Transform fix_transform(const Transform &p_transform);
+	Transform3D fix_transform(const Transform3D &p_transform);
 
-	Transform get_root_transform() const;
+	Transform3D get_root_transform() const;
 
 	int get_uv_channel(String p_name);
 
@@ -557,7 +557,7 @@ private: // private stuff
 	Variant _parse_param(XMLParser &parser);
 	Vector<float> _read_float_array(XMLParser &parser);
 	Vector<String> _read_string_array(XMLParser &parser);
-	Transform _read_transform(XMLParser &parser);
+	Transform3D _read_transform(XMLParser &parser);
 	String _read_empty_draw_type(XMLParser &parser);
 
 	void _joint_set_owner(Collada::Node *p_node, NodeSkeleton *p_owner);

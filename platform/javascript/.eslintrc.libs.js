@@ -15,8 +15,12 @@ module.exports = {
 		"IDBFS": true,
 		"GodotOS": true,
 		"GodotConfig": true,
+		"GodotEventListeners": true,
 		"GodotRuntime": true,
 		"GodotFS": true,
 		"IDHandler": true,
+		"Browser": true,
+		"GL": true,
+		"XRWebGLLayer": true,
 	},
 };

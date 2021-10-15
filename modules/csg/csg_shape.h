@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -34,6 +34,7 @@
 #define CSGJS_HEADER_ONLY
 
 #include "csg.h"
+#include "scene/3d/path_3d.h"
 #include "scene/3d/visual_instance_3d.h"
 #include "scene/resources/concave_polygon_shape_3d.h"
 #include "thirdparty/misc/mikktspace.h"
@@ -50,23 +51,23 @@ public:
 	};
 
 private:
-	Operation operation;
-	CSGShape3D *parent;
+	Operation operation = OPERATION_UNION;
+	CSGShape3D *parent = nullptr;
 
-	CSGBrush *brush;
+	CSGBrush *brush = nullptr;
 
 	AABB node_aabb;
 
-	bool dirty;
-	float snap;
+	bool dirty = false;
+	float snap = 0.001;
 
-	bool use_collision;
-	uint32_t collision_layer;
-	uint32_t collision_mask;
+	bool use_collision = false;
+	uint32_t collision_layer = 1;
+	uint32_t collision_mask = 1;
 	Ref<ConcavePolygonShape3D> root_collision_shape;
 	RID root_collision_instance;
 
-	bool calculate_tangents;
+	bool calculate_tangents = true;
 
 	Ref<ArrayMesh> root_mesh;
 
@@ -83,14 +84,14 @@ private:
 		Vector<Vector3> vertices;
 		Vector<Vector3> normals;
 		Vector<Vector2> uvs;
-		Vector<float> tans;
+		Vector<real_t> tans;
 		Ref<Material> material;
-		int last_added;
+		int last_added = 0;
 
-		Vector3 *verticesw;
-		Vector3 *normalsw;
-		Vector2 *uvsw;
-		float *tansw;
+		Vector3 *verticesw = nullptr;
+		Vector3 *normalsw = nullptr;
+		Vector2 *uvsw = nullptr;
+		real_t *tansw = nullptr;
 	};
 
 	//mikktspace callbacks
@@ -136,11 +137,11 @@ public:
 	void set_collision_mask(uint32_t p_mask);
 	uint32_t get_collision_mask() const;
 
-	void set_collision_layer_bit(int p_bit, bool p_value);
-	bool get_collision_layer_bit(int p_bit) const;
+	void set_collision_layer_value(int p_layer_number, bool p_value);
+	bool get_collision_layer_value(int p_layer_number) const;
 
-	void set_collision_mask_bit(int p_bit, bool p_value);
-	bool get_collision_mask_bit(int p_bit) const;
+	void set_collision_mask_value(int p_layer_number, bool p_value);
+	bool get_collision_mask_value(int p_layer_number) const;
 
 	void set_snap(float p_snap);
 	float get_snap() const;
@@ -168,10 +169,8 @@ public:
 class CSGPrimitive3D : public CSGShape3D {
 	GDCLASS(CSGPrimitive3D, CSGShape3D);
 
-private:
-	bool invert_faces;
-
 protected:
+	bool invert_faces;
 	CSGBrush *_create_brush_from_arrays(const Vector<Vector3> &p_vertices, const Vector<Vector2> &p_uv, const Vector<bool> &p_smooth, const Vector<Ref<Material>> &p_materials);
 	static void _bind_methods();
 
@@ -240,27 +239,19 @@ class CSGBox3D : public CSGPrimitive3D {
 	virtual CSGBrush *_build_brush() override;
 
 	Ref<Material> material;
-	float width;
-	float height;
-	float depth;
+	Vector3 size = Vector3(2, 2, 2);
 
 protected:
 	static void _bind_methods();
 
 public:
-	void set_width(const float p_width);
-	float get_width() const;
-
-	void set_height(const float p_height);
-	float get_height() const;
-
-	void set_depth(const float p_depth);
-	float get_depth() const;
+	void set_size(const Vector3 &p_size);
+	Vector3 get_size() const;
 
 	void set_material(const Ref<Material> &p_material);
 	Ref<Material> get_material() const;
 
-	CSGBox3D();
+	CSGBox3D() {}
 };
 
 class CSGCylinder3D : public CSGPrimitive3D {
@@ -345,6 +336,11 @@ public:
 		MODE_PATH
 	};
 
+	enum PathIntervalType {
+		PATH_INTERVAL_DISTANCE,
+		PATH_INTERVAL_SUBDIVIDE
+	};
+
 	enum PathRotation {
 		PATH_ROTATION_POLYGON,
 		PATH_ROTATION_PATH,
@@ -365,14 +361,17 @@ private:
 	int spin_sides;
 
 	NodePath path_node;
+	PathIntervalType path_interval_type;
 	float path_interval;
+	float path_simplify_angle;
 	PathRotation path_rotation;
 	bool path_local;
 
-	Node *path_cache;
+	Path3D *path;
 
 	bool smooth_faces;
 	bool path_continuous_u;
+	real_t path_u_distance;
 	bool path_joined;
 
 	bool _is_editable_3d_polygon() const;
@@ -405,8 +404,14 @@ public:
 	void set_path_node(const NodePath &p_path);
 	NodePath get_path_node() const;
 
+	void set_path_interval_type(PathIntervalType p_interval_type);
+	PathIntervalType get_path_interval_type() const;
+
 	void set_path_interval(float p_interval);
 	float get_path_interval() const;
+
+	void set_path_simplify_angle(float p_angle);
+	float get_path_simplify_angle() const;
 
 	void set_path_rotation(PathRotation p_rotation);
 	PathRotation get_path_rotation() const;
@@ -416,6 +421,9 @@ public:
 
 	void set_path_continuous_u(bool p_enable);
 	bool is_path_continuous_u() const;
+
+	void set_path_u_distance(real_t p_path_u_distance);
+	real_t get_path_u_distance() const;
 
 	void set_path_joined(bool p_enable);
 	bool is_path_joined() const;
@@ -431,5 +439,6 @@ public:
 
 VARIANT_ENUM_CAST(CSGPolygon3D::Mode)
 VARIANT_ENUM_CAST(CSGPolygon3D::PathRotation)
+VARIANT_ENUM_CAST(CSGPolygon3D::PathIntervalType)
 
 #endif // CSG_SHAPE_H

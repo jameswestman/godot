@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,7 +30,15 @@
 
 #include "area_3d_sw.h"
 #include "body_3d_sw.h"
+#include "soft_body_3d_sw.h"
 #include "space_3d_sw.h"
+
+Area3DSW::BodyKey::BodyKey(SoftBody3DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape) {
+	rid = p_body->get_self();
+	instance_id = p_body->get_instance_id();
+	body_shape = p_body_shape;
+	area_shape = p_area_shape;
+}
 
 Area3DSW::BodyKey::BodyKey(Body3DSW *p_body, uint32_t p_body_shape, uint32_t p_area_shape) {
 	rid = p_body->get_self();
@@ -52,7 +60,7 @@ void Area3DSW::_shapes_changed() {
 	}
 }
 
-void Area3DSW::set_transform(const Transform &p_transform) {
+void Area3DSW::set_transform(const Transform3D &p_transform) {
 	if (!moved_list.in_list() && get_space()) {
 		get_space()->area_add_to_moved_list(&moved_list);
 	}
@@ -155,6 +163,20 @@ void Area3DSW::set_param(PhysicsServer3D::AreaParameter p_param, const Variant &
 		case PhysicsServer3D::AREA_PARAM_PRIORITY:
 			priority = p_value;
 			break;
+		case PhysicsServer3D::AREA_PARAM_WIND_FORCE_MAGNITUDE:
+			ERR_FAIL_COND_MSG(wind_force_magnitude < 0, "Wind force magnitude must be a non-negative real number, but a negative number was specified.");
+			wind_force_magnitude = p_value;
+			break;
+		case PhysicsServer3D::AREA_PARAM_WIND_SOURCE:
+			wind_source = p_value;
+			break;
+		case PhysicsServer3D::AREA_PARAM_WIND_DIRECTION:
+			wind_direction = p_value;
+			break;
+		case PhysicsServer3D::AREA_PARAM_WIND_ATTENUATION_FACTOR:
+			ERR_FAIL_COND_MSG(wind_attenuation_factor < 0, "Wind attenuation factor must be a non-negative real number, but a negative number was specified.");
+			wind_attenuation_factor = p_value;
+			break;
 	}
 }
 
@@ -176,6 +198,14 @@ Variant Area3DSW::get_param(PhysicsServer3D::AreaParameter p_param) const {
 			return angular_damp;
 		case PhysicsServer3D::AREA_PARAM_PRIORITY:
 			return priority;
+		case PhysicsServer3D::AREA_PARAM_WIND_FORCE_MAGNITUDE:
+			return wind_force_magnitude;
+		case PhysicsServer3D::AREA_PARAM_WIND_SOURCE:
+			return wind_source;
+		case PhysicsServer3D::AREA_PARAM_WIND_DIRECTION:
+			return wind_direction;
+		case PhysicsServer3D::AREA_PARAM_WIND_ATTENUATION_FACTOR:
+			return wind_attenuation_factor;
 	}
 
 	return Variant();
@@ -199,7 +229,7 @@ void Area3DSW::set_monitorable(bool p_monitorable) {
 }
 
 void Area3DSW::call_queries() {
-	if (monitor_callback_id.is_valid() && !monitored_bodies.empty()) {
+	if (monitor_callback_id.is_valid() && !monitored_bodies.is_empty()) {
 		Variant res[5];
 		Variant *resptr[5];
 		for (int i = 0; i < 5; i++) {
@@ -215,7 +245,9 @@ void Area3DSW::call_queries() {
 
 		for (Map<BodyKey, BodyState>::Element *E = monitored_bodies.front(); E;) {
 			if (E->get().state == 0) { // Nothing happened
-				E = E->next();
+				Map<BodyKey, BodyState>::Element *next = E->next();
+				monitored_bodies.erase(E);
+				E = next;
 				continue;
 			}
 
@@ -234,7 +266,7 @@ void Area3DSW::call_queries() {
 		}
 	}
 
-	if (area_monitor_callback_id.is_valid() && !monitored_areas.empty()) {
+	if (area_monitor_callback_id.is_valid() && !monitored_areas.is_empty()) {
 		Variant res[5];
 		Variant *resptr[5];
 		for (int i = 0; i < 5; i++) {
@@ -250,7 +282,9 @@ void Area3DSW::call_queries() {
 
 		for (Map<BodyKey, BodyState>::Element *E = monitored_areas.front(); E;) {
 			if (E->get().state == 0) { // Nothing happened
-				E = E->next();
+				Map<BodyKey, BodyState>::Element *next = E->next();
+				monitored_areas.erase(E);
+				E = next;
 				continue;
 			}
 
@@ -270,22 +304,32 @@ void Area3DSW::call_queries() {
 	}
 }
 
+void Area3DSW::compute_gravity(const Vector3 &p_position, Vector3 &r_gravity) const {
+	if (is_gravity_point()) {
+		const real_t gravity_distance_scale = get_gravity_distance_scale();
+		Vector3 v = get_transform().xform(get_gravity_vector()) - p_position;
+		if (gravity_distance_scale > 0) {
+			const real_t v_length = v.length();
+			if (v_length > 0) {
+				const real_t v_scaled = v_length * gravity_distance_scale;
+				r_gravity = (v.normalized() * (get_gravity() / (v_scaled * v_scaled)));
+			} else {
+				r_gravity = Vector3();
+			}
+		} else {
+			r_gravity = v.normalized() * get_gravity();
+		}
+	} else {
+		r_gravity = get_gravity_vector() * get_gravity();
+	}
+}
+
 Area3DSW::Area3DSW() :
 		CollisionObject3DSW(TYPE_AREA),
 		monitor_query_list(this),
 		moved_list(this) {
 	_set_static(true); //areas are never active
-	space_override_mode = PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED;
-	gravity = 9.80665;
-	gravity_vector = Vector3(0, -1, 0);
-	gravity_is_point = false;
-	gravity_distance_scale = 0;
-	point_attenuation = 1;
-	angular_damp = 0.1;
-	linear_damp = 0.1;
-	priority = 0;
 	set_ray_pickable(false);
-	monitorable = false;
 }
 
 Area3DSW::~Area3DSW() {

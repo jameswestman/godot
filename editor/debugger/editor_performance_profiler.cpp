@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -102,16 +102,16 @@ void EditorPerformanceProfiler::_monitor_draw() {
 		}
 	}
 
-	if (active.empty()) {
+	if (active.is_empty()) {
 		info_message->show();
 		return;
 	}
 
 	info_message->hide();
 
-	Ref<StyleBox> graph_style_box = get_theme_stylebox("normal", "TextEdit");
-	Ref<Font> graph_font = get_theme_font("font", "TextEdit");
-	int font_size = get_theme_font_size("font_size", "TextEdit");
+	Ref<StyleBox> graph_style_box = get_theme_stylebox(SNAME("normal"), SNAME("TextEdit"));
+	Ref<Font> graph_font = get_theme_font(SNAME("font"), SNAME("TextEdit"));
+	int font_size = get_theme_font_size(SNAME("font_size"), SNAME("TextEdit"));
 
 	int columns = int(Math::ceil(Math::sqrt(float(active.size()))));
 	int rows = int(Math::ceil(float(active.size()) / float(columns)));
@@ -130,7 +130,7 @@ void EditorPerformanceProfiler::_monitor_draw() {
 
 		rect.position += graph_style_box->get_offset();
 		rect.size -= graph_style_box->get_minimum_size();
-		Color draw_color = get_theme_color("accent_color", "Editor");
+		Color draw_color = get_theme_color(SNAME("accent_color"), SNAME("Editor"));
 		draw_color.set_hsv(Math::fmod(hue_shift * float(current.frame_index), 0.9f), draw_color.get_s() * 0.9f, draw_color.get_v() * value_multiplier, 0.6f);
 		monitor_draw->draw_string(graph_font, rect.position + Point2(0, graph_font->get_ascent(font_size)), current.item->get_text(0), HALIGN_LEFT, rect.size.x, font_size, draw_color);
 
@@ -217,7 +217,7 @@ void EditorPerformanceProfiler::_build_monitor_tree() {
 		TreeItem *item = _create_monitor_item(i.value().name, base);
 		item->set_checked(0, monitor_checked.has(i.key()));
 		i.value().item = item;
-		if (!i.value().history.empty()) {
+		if (!i.value().history.is_empty()) {
 			i.value().update_value(i.value().history.front()->get());
 		}
 	}
@@ -249,7 +249,7 @@ TreeItem *EditorPerformanceProfiler::_create_monitor_item(const StringName &p_mo
 
 void EditorPerformanceProfiler::_marker_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEventMouseButton> mb = p_event;
-	if (mb.is_valid() && mb->is_pressed() && mb->get_button_index() == BUTTON_LEFT) {
+	if (mb.is_valid() && mb->is_pressed() && mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 		Vector<StringName> active;
 		for (OrderedHashMap<StringName, Monitor>::Element i = monitors.front(); i; i = i.next()) {
 			if (i.value().item->is_checked(0)) {
@@ -271,7 +271,7 @@ void EditorPerformanceProfiler::_marker_input(const Ref<InputEvent> &p_event) {
 				} else {
 					marker_key = "";
 				}
-				Ref<StyleBox> graph_style_box = get_theme_stylebox("normal", "TextEdit");
+				Ref<StyleBox> graph_style_box = get_theme_stylebox(SNAME("normal"), SNAME("TextEdit"));
 				rect.position += graph_style_box->get_offset();
 				rect.size -= graph_style_box->get_minimum_size();
 				Vector2 point = mb->get_position() - rect.position;
@@ -380,9 +380,9 @@ EditorPerformanceProfiler::EditorPerformanceProfiler() {
 	info_message->set_text(TTR("Pick one or more items from the list to display the graph."));
 	info_message->set_valign(Label::VALIGN_CENTER);
 	info_message->set_align(Label::ALIGN_CENTER);
-	info_message->set_autowrap(true);
+	info_message->set_autowrap_mode(Label::AUTOWRAP_WORD_SMART);
 	info_message->set_custom_minimum_size(Size2(100 * EDSCALE, 0));
-	info_message->set_anchors_and_margins_preset(PRESET_WIDE, PRESET_MODE_KEEP_SIZE, 8 * EDSCALE);
+	info_message->set_anchors_and_offsets_preset(PRESET_WIDE, PRESET_MODE_KEEP_SIZE, 8 * EDSCALE);
 	monitor_draw->add_child(info_message);
 
 	for (int i = 0; i < Performance::MONITOR_MAX; i++) {

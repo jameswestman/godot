@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <stdio.h>
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 class OS_UWP : public OS {
@@ -58,7 +59,7 @@ public:
 		bool alt = false, shift = false, control = false;
 		MessageType type = KEY_EVENT_MESSAGE;
 		bool pressed = false;
-		unsigned int keycode = 0;
+		Key keycode = KEY_NONE;
 		unsigned int physical_keycode = 0;
 		unsigned int unicode = 0;
 		bool echo = false;
@@ -106,7 +107,7 @@ private:
 	bool control_mem;
 	bool meta_mem;
 	bool force_quit;
-	uint32_t last_button_state;
+	MouseButton last_button_state = MOUSE_BUTTON_NONE;
 
 	CursorShape cursor_shape;
 
@@ -173,7 +174,7 @@ public:
 	MouseMode get_mouse_mode() const;
 
 	virtual Point2 get_mouse_position() const;
-	virtual int get_mouse_button_state() const;
+	virtual MouseButton get_mouse_button_state() const;
 	virtual void set_window_title(const String &p_title);
 
 	virtual void set_video_mode(const VideoMode &p_video_mode, int p_screen = 0);
@@ -194,13 +195,13 @@ public:
 	virtual TimeZoneInfo get_time_zone_info() const;
 	virtual uint64_t get_unix_time() const;
 
-	virtual bool can_draw() const;
 	virtual Error set_cwd(const String &p_cwd);
 
 	virtual void delay_usec(uint32_t p_usec) const;
 	virtual uint64_t get_ticks_usec() const;
 
-	virtual Error execute(const String &p_path, const List<String> &p_arguments, bool p_blocking = true, ProcessID *r_child_id = nullptr, String *r_pipe = nullptr, int *r_exitcode = nullptr, bool read_stderr = false, Mutex *p_pipe_mutex = nullptr);
+	virtual Error execute(const String &p_path, const List<String> &p_arguments, String *r_pipe = nullptr, int *r_exitcode = nullptr, bool read_stderr = false, Mutex *p_pipe_mutex = nullptr);
+	virtual Error create_process(const String &p_path, const List<String> &p_arguments, ProcessID *r_child_id = nullptr);
 	virtual Error kill(const ProcessID &p_pid);
 
 	virtual bool has_environment(const String &p_var) const;

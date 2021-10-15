@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -52,8 +52,8 @@ void AABB::merge_with(const AABB &p_aabb) {
 
 	beg_1 = position;
 	beg_2 = p_aabb.position;
-	end_1 = Vector3(size.x, size.y, size.z) + beg_1;
-	end_2 = Vector3(p_aabb.size.x, p_aabb.size.y, p_aabb.size.z) + beg_2;
+	end_1 = size + beg_1;
+	end_2 = p_aabb.size + beg_2;
 
 	min.x = (beg_1.x < beg_2.x) ? beg_1.x : beg_2.x;
 	min.y = (beg_1.y < beg_2.y) ? beg_1.y : beg_2.y;
@@ -392,5 +392,5 @@ Variant AABB::intersects_ray_bind(const Vector3 &p_from, const Vector3 &p_dir) c
 }
 
 AABB::operator String() const {
-	return String() + position + " - " + size;
+	return "[P: " + position.operator String() + ", S: " + size + "]";
 }

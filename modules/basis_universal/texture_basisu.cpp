@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -33,7 +33,7 @@
 #include "core/os/os.h"
 
 #ifdef TOOLS_ENABLED
-#include <basisu_comp.h>
+#include <encoder/basisu_comp.h>
 #endif
 
 #include <transcoder/basisu_transcoder.h>
@@ -130,7 +130,7 @@ void TextureBasisU::set_basisu_data(const Vector<uint8_t>& p_data) {
 	};
 
 	Ref<Image> img;
-	img.instance();
+	img.instantiate();
 	img->create(info.m_width, info.m_height, info.m_total_levels > 1, imgfmt, gpudata);
 
 	RenderingServer::get_singleton()->texture_allocate(texture, tex_size.x, tex_size.y, 0, img->get_format(), RS::TEXTURE_TYPE_2D, flags);
@@ -207,7 +207,6 @@ Vector<uint8_t> TextureBasisU::get_basisu_data() const {
 };
 
 TextureBasisU::TextureBasisU() {
-	flags = FLAGS_DEFAULT;
 	texture = RenderingServer::get_singleton()->texture_create();
 };
 

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,9 +32,7 @@
 #define GPU_PARTICLES_COLLISION_3D_H
 
 #include "core/templates/local_vector.h"
-#include "core/templates/rid.h"
 #include "scene/3d/visual_instance_3d.h"
-#include "scene/resources/material.h"
 
 class GPUParticlesCollision3D : public VisualInstance3D {
 	GDCLASS(GPUParticlesCollision3D, VisualInstance3D);
@@ -60,14 +58,14 @@ public:
 class GPUParticlesCollisionSphere : public GPUParticlesCollision3D {
 	GDCLASS(GPUParticlesCollisionSphere, GPUParticlesCollision3D);
 
-	float radius = 1.0;
+	real_t radius = 1.0;
 
 protected:
 	static void _bind_methods();
 
 public:
-	void set_radius(float p_radius);
-	float get_radius() const;
+	void set_radius(real_t p_radius);
+	real_t get_radius() const;
 
 	virtual AABB get_aabb() const override;
 
@@ -119,7 +117,7 @@ private:
 
 	struct PlotMesh {
 		Ref<Mesh> mesh;
-		Transform local_xform;
+		Transform3D local_xform;
 	};
 
 	void _find_meshes(const AABB &p_aabb, Node *p_at_node, List<PlotMesh> &plot_meshes);
@@ -130,16 +128,16 @@ private:
 			LEAF_MASK = LEAF_BIT - 1
 		};
 		AABB bounds;
-		uint32_t children[2];
+		uint32_t children[2] = {};
 	};
 
 	struct FacePos {
 		Vector3 center;
-		uint32_t index;
+		uint32_t index = 0;
 	};
 
 	struct FaceSort {
-		uint32_t axis;
+		uint32_t axis = 0;
 		bool operator()(const FacePos &p_left, const FacePos &p_right) const {
 			return p_left.center[axis] < p_right.center[axis];
 		}
@@ -148,13 +146,13 @@ private:
 	uint32_t _create_bvh(LocalVector<BVH> &bvh_tree, FacePos *p_faces, uint32_t p_face_count, const Face3 *p_triangles, float p_thickness);
 
 	struct ComputeSDFParams {
-		float *cells;
+		float *cells = nullptr;
 		Vector3i size;
-		float cell_size;
+		float cell_size = 0.0;
 		Vector3 cell_offset;
-		const BVH *bvh;
-		const Face3 *triangles;
-		float thickness;
+		const BVH *bvh = nullptr;
+		const Face3 *triangles = nullptr;
+		float thickness = 0.0;
 	};
 
 	void _find_closest_distance(const Vector3 &p_pos, const BVH *bvh, uint32_t p_bvh_cell, const Face3 *triangles, float thickness, float &closest_distance);
@@ -253,9 +251,9 @@ class GPUParticlesAttractor3D : public VisualInstance3D {
 
 	uint32_t cull_mask = 0xFFFFFFFF;
 	RID collision;
-	float strength = 1.0;
-	float attenuation = 1.0;
-	float directionality = 0.0;
+	real_t strength = 1.0;
+	real_t attenuation = 1.0;
+	real_t directionality = 0.0;
 
 protected:
 	_FORCE_INLINE_ RID _get_collision() { return collision; }
@@ -267,14 +265,14 @@ public:
 	void set_cull_mask(uint32_t p_cull_mask);
 	uint32_t get_cull_mask() const;
 
-	void set_strength(float p_strength);
-	float get_strength() const;
+	void set_strength(real_t p_strength);
+	real_t get_strength() const;
 
-	void set_attenuation(float p_attenuation);
-	float get_attenuation() const;
+	void set_attenuation(real_t p_attenuation);
+	real_t get_attenuation() const;
 
-	void set_directionality(float p_directionality);
-	float get_directionality() const;
+	void set_directionality(real_t p_directionality);
+	real_t get_directionality() const;
 
 	virtual Vector<Face3> get_faces(uint32_t p_usage_flags) const override { return Vector<Face3>(); }
 
@@ -284,14 +282,14 @@ public:
 class GPUParticlesAttractorSphere : public GPUParticlesAttractor3D {
 	GDCLASS(GPUParticlesAttractorSphere, GPUParticlesAttractor3D);
 
-	float radius = 1.0;
+	real_t radius = 1.0;
 
 protected:
 	static void _bind_methods();
 
 public:
-	void set_radius(float p_radius);
-	float get_radius() const;
+	void set_radius(real_t p_radius);
+	real_t get_radius() const;
 
 	virtual AABB get_aabb() const override;
 

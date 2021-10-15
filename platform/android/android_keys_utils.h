@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -127,8 +127,8 @@ static _WinTranslatePair _ak_to_keycode[] = {
 	{ KEY_BACKSLASH, AKEYCODE_BACKSLASH },
 	{ KEY_BRACKETLEFT, AKEYCODE_LEFT_BRACKET },
 	{ KEY_BRACKETRIGHT, AKEYCODE_RIGHT_BRACKET },
-	{ KEY_CONTROL, AKEYCODE_CTRL_LEFT },
-	{ KEY_CONTROL, AKEYCODE_CTRL_RIGHT },
+	{ KEY_CTRL, AKEYCODE_CTRL_LEFT },
+	{ KEY_CTRL, AKEYCODE_CTRL_RIGHT },
 	{ KEY_UNKNOWN, 0 }
 };
 /*

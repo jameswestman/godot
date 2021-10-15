@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -34,6 +34,8 @@
 #include <android/log.h>
 #include <jni.h>
 
+#include "string_android.h"
+
 // Class that makes functions in java/src/org/godotengine/godot/GodotView.java callable from C++
 class GodotJavaViewWrapper {
 private:
@@ -43,12 +45,14 @@ private:
 
 	jmethodID _request_pointer_capture = 0;
 	jmethodID _release_pointer_capture = 0;
+	jmethodID _set_pointer_icon = 0;
 
 public:
 	GodotJavaViewWrapper(jobject godot_view);
 
 	void request_pointer_capture();
 	void release_pointer_capture();
+	void set_pointer_icon(int pointer_type);
 
 	~GodotJavaViewWrapper();
 };

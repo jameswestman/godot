@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -95,7 +95,7 @@ class Polygon2DEditor : public AbstractPolygon2DEditor {
 	void _update_bone_list();
 
 	Vector2 uv_draw_ofs;
-	float uv_draw_zoom;
+	real_t uv_draw_zoom;
 	Vector<Vector2> points_prev;
 	Vector<Vector2> uv_create_uv_prev;
 	Vector<Vector2> uv_create_poly_prev;
@@ -127,17 +127,17 @@ class Polygon2DEditor : public AbstractPolygon2DEditor {
 	void _cancel_editing();
 	void _update_polygon_editing_state();
 
-	void _uv_scroll_changed(float);
+	void _uv_scroll_changed(real_t);
 	void _uv_input(const Ref<InputEvent> &p_input);
 	void _uv_draw();
 	void _uv_mode(int p_mode);
 
 	void _set_use_snap(bool p_use);
 	void _set_show_grid(bool p_show);
-	void _set_snap_off_x(float p_val);
-	void _set_snap_off_y(float p_val);
-	void _set_snap_step_x(float p_val);
-	void _set_snap_step_y(float p_val);
+	void _set_snap_off_x(real_t p_val);
+	void _set_snap_off_y(real_t p_val);
+	void _set_snap_step_x(real_t p_val);
+	void _set_snap_step_y(real_t p_val);
 
 	void _uv_edit_mode_select(int p_mode);
 	void _uv_edit_popup_hide();

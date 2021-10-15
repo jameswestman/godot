@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -88,16 +88,6 @@ int Math::range_step_decimals(double p_step) {
 	return step_decimals(p_step);
 }
 
-double Math::dectime(double p_value, double p_amount, double p_step) {
-	double sgn = p_value < 0 ? -1.0 : 1.0;
-	double val = Math::abs(p_value);
-	val -= p_amount * p_step;
-	if (val < 0.0) {
-		val = 0.0;
-	}
-	return val * sgn;
-}
-
 double Math::ease(double p_x, double p_c) {
 	if (p_x < 0) {
 		p_x = 0;
@@ -123,7 +113,7 @@ double Math::ease(double p_x, double p_c) {
 	}
 }
 
-double Math::stepify(double p_value, double p_step) {
+double Math::snapped(double p_value, double p_step) {
 	if (p_step != 0) {
 		p_value = Math::floor(p_value / p_step + 0.5) * p_step;
 	}

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,7 +30,7 @@
 
 // Godot imports
 #include "core/config/project_settings.h"
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 #include "core/os/os.h"
 // PluginScript imports
 #include "pluginscript_language.h"
@@ -77,6 +77,10 @@ void PluginScriptLanguage::get_reserved_words(List<String> *p_words) const {
 	}
 }
 
+bool PluginScriptLanguage::is_control_flow_keyword(String p_keyword) const {
+	return false;
+}
+
 void PluginScriptLanguage::get_comment_delimiters(List<String> *p_delimiters) const {
 	if (_desc.comment_delimiters) {
 		const char **w = _desc.comment_delimiters;
@@ -108,19 +112,28 @@ Ref<Script> PluginScriptLanguage::get_template(const String &p_class_name, const
 	return script;
 }
 
-bool PluginScriptLanguage::validate(const String &p_script, int &r_line_error, int &r_col_error, String &r_test_error, const String &p_path, List<String> *r_functions, List<ScriptLanguage::Warning> *r_warnings, Set<int> *r_safe_lines) const {
+bool PluginScriptLanguage::validate(const String &p_script, const String &p_path, List<String> *r_functions, List<ScriptLanguage::ScriptError> *r_errors, List<ScriptLanguage::Warning> *r_warnings, Set<int> *r_safe_lines) const {
 	PackedStringArray functions;
+	Array errors;
 	if (_desc.validate) {
 		bool ret = _desc.validate(
 				_data,
 				(godot_string *)&p_script,
-				&r_line_error,
-				&r_col_error,
-				(godot_string *)&r_test_error,
 				(godot_string *)&p_path,
-				(godot_packed_string_array *)&functions);
+				(godot_packed_string_array *)&functions,
+				(godot_array *)&errors);
 		for (int i = 0; i < functions.size(); i++) {
 			r_functions->push_back(functions[i]);
+		}
+		if (r_errors) {
+			for (int i = 0; i < errors.size(); i++) {
+				Dictionary error = errors[i];
+				ScriptLanguage::ScriptError e;
+				e.line = error["line"];
+				e.column = error["column"];
+				e.message = error["message"];
+				r_errors->push_back(e);
+			}
 		}
 		return ret;
 	}
@@ -407,7 +420,7 @@ bool PluginScriptLanguage::handles_global_class_type(const String &p_type) const
 }
 
 String PluginScriptLanguage::get_global_class_name(const String &p_path, String *r_base_type, String *r_icon_path) const {
-	if (!p_path.empty()) {
+	if (!p_path.is_empty()) {
 		Ref<PluginScript> script = ResourceLoader::load(p_path, "PluginScript");
 		if (script.is_valid()) {
 			if (r_base_type) {

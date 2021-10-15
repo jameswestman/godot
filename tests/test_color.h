@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -101,13 +101,13 @@ TEST_CASE("[Color] Reading methods") {
 	const Color dark_blue = Color(0, 0, 0.5, 0.4);
 
 	CHECK_MESSAGE(
-			Math::is_equal_approx(dark_blue.get_h(), 240 / 360.0),
+			Math::is_equal_approx(dark_blue.get_h(), 240.0f / 360.0f),
 			"The returned HSV hue should match the expected value.");
 	CHECK_MESSAGE(
-			Math::is_equal_approx(dark_blue.get_s(), 1),
+			Math::is_equal_approx(dark_blue.get_s(), 1.0f),
 			"The returned HSV saturation should match the expected value.");
 	CHECK_MESSAGE(
-			Math::is_equal_approx(dark_blue.get_v(), 0.5),
+			Math::is_equal_approx(dark_blue.get_v(), 0.5f),
 			"The returned HSV value should match the expected value.");
 }
 
@@ -140,7 +140,7 @@ TEST_CASE("[Color] Conversion methods") {
 			cyan.to_rgba64() == 0x0000'ffff'ffff'ffff,
 			"The returned 64-bit BGR number should match the expected value.");
 	CHECK_MESSAGE(
-			String(cyan) == "0, 1, 1, 1",
+			String(cyan) == "(0, 1, 1, 1)",
 			"The string representation should match the expected value.");
 }
 

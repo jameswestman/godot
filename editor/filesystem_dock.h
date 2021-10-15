@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -43,7 +43,7 @@
 #include "scene/gui/tree.h"
 #include "scene/main/timer.h"
 
-#include "core/os/dir_access.h"
+#include "core/io/dir_access.h"
 #include "core/os/thread.h"
 
 #include "create_dialog.h"
@@ -101,6 +101,7 @@ private:
 		FILE_SHOW_IN_EXPLORER,
 		FILE_COPY_PATH,
 		FILE_NEW_RESOURCE,
+		FILE_NEW_TEXTFILE,
 		FOLDER_EXPAND_ALL,
 		FOLDER_COLLAPSE_ALL,
 	};

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -64,7 +64,7 @@ void EditorQuickOpen::_build_search_cache(EditorFileSystemDirectory *p_efsd) {
 			// Store refs to used icons.
 			String ext = file.get_extension();
 			if (!icons.has(ext)) {
-				icons.insert(ext, get_theme_icon((has_theme_icon(file_type, "EditorIcons") ? file_type : "Object"), "EditorIcons"));
+				icons.insert(ext, get_theme_icon((has_theme_icon(file_type, SNAME("EditorIcons")) ? file_type : String("Object")), SNAME("EditorIcons")));
 			}
 		}
 	}
@@ -102,21 +102,26 @@ void EditorQuickOpen::_update_search() {
 			ti->set_icon(0, *icons.lookup_ptr(entries[i].path.get_extension()));
 		}
 
-		TreeItem *to_select = root->get_children();
+		TreeItem *to_select = root->get_first_child();
 		to_select->select(0);
 		to_select->set_as_cursor(0);
 		search_options->scroll_to_item(to_select);
 
-		get_ok()->set_disabled(false);
+		get_ok_button()->set_disabled(false);
 	} else {
 		search_options->deselect_all();
 
-		get_ok()->set_disabled(true);
+		get_ok_button()->set_disabled(true);
 	}
 }
 
 float EditorQuickOpen::_score_path(const String &p_search, const String &p_path) {
 	float score = 0.9f + .1f * (p_search.length() / (float)p_path.length());
+
+	// Exact match.
+	if (p_search == p_path) {
+		return 1.2f;
+	}
 
 	// Positive bias for matches close to the beginning of the file name.
 	String file = p_path.get_file();
@@ -125,14 +130,8 @@ float EditorQuickOpen::_score_path(const String &p_search, const String &p_path)
 		return score * (1.0f - 0.1f * (float(pos) / file.length()));
 	}
 
-	// Positive bias for matches close to the end of the path.
-	pos = p_path.rfindn(p_search);
-	if (pos != -1) {
-		return score * (0.8f - 0.1f * (float(p_path.length() - pos) / p_path.length()));
-	}
-
-	// Remaining results belong to the same class of results.
-	return score * 0.69f;
+	// Similarity
+	return p_path.to_lower().similarity(p_search.to_lower());
 }
 
 void EditorQuickOpen::_confirmed() {
@@ -140,7 +139,7 @@ void EditorQuickOpen::_confirmed() {
 		return;
 	}
 	_cleanup();
-	emit_signal("quick_open");
+	emit_signal(SNAME("quick_open"));
 	hide();
 }
 
@@ -165,12 +164,12 @@ void EditorQuickOpen::_sbox_input(const Ref<InputEvent> &p_ie) {
 			case KEY_DOWN:
 			case KEY_PAGEUP:
 			case KEY_PAGEDOWN: {
-				search_options->call("_gui_input", k);
+				search_options->gui_input(k);
 				search_box->accept_event();
 
 				if (allow_multi_select) {
 					TreeItem *root = search_options->get_root();
-					if (!root->get_children()) {
+					if (!root->get_first_child()) {
 						break;
 					}
 
@@ -185,6 +184,8 @@ void EditorQuickOpen::_sbox_input(const Ref<InputEvent> &p_ie) {
 					current->set_as_cursor(0);
 				}
 			} break;
+			default:
+				break;
 		}
 	}
 }
@@ -228,7 +229,7 @@ void EditorQuickOpen::_notification(int p_what) {
 }
 
 void EditorQuickOpen::_theme_changed() {
-	search_box->set_right_icon(search_options->get_theme_icon("Search", "EditorIcons"));
+	search_box->set_right_icon(search_options->get_theme_icon(SNAME("Search"), SNAME("EditorIcons")));
 }
 
 void EditorQuickOpen::_bind_methods() {
@@ -256,6 +257,6 @@ EditorQuickOpen::EditorQuickOpen() {
 	search_options->add_theme_constant_override("draw_guides", 1);
 	vbc->add_margin_child(TTR("Matches:"), search_options, true);
 
-	get_ok()->set_text(TTR("Open"));
+	get_ok_button()->set_text(TTR("Open"));
 	set_hide_on_ok(false);
 }

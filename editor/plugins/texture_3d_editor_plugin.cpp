@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -34,9 +34,6 @@
 #include "core/io/resource_loader.h"
 #include "editor/editor_settings.h"
 
-void Texture3DEditor::_gui_input(Ref<InputEvent> p_event) {
-}
-
 void Texture3DEditor::_texture_rect_draw() {
 	texture_rect->draw_rect(Rect2(Point2(), texture_rect->get_size()), Color(1, 1, 1, 1));
 }
@@ -50,14 +47,14 @@ void Texture3DEditor::_notification(int p_what) {
 	}
 
 	if (p_what == NOTIFICATION_DRAW) {
-		Ref<Texture2D> checkerboard = get_theme_icon("Checkerboard", "EditorIcons");
+		Ref<Texture2D> checkerboard = get_theme_icon(SNAME("Checkerboard"), SNAME("EditorIcons"));
 		Size2 size = get_size();
 
 		draw_texture_rect(checkerboard, Rect2(Point2(), size), true);
 	}
 }
 
-void Texture3DEditor::_changed_callback(Object *p_changed, const char *p_prop) {
+void Texture3DEditor::_texture_changed() {
 	if (!is_visible()) {
 		return;
 	}
@@ -77,17 +74,20 @@ void Texture3DEditor::_update_material() {
 }
 
 void Texture3DEditor::_make_shaders() {
-	String shader_3d = ""
-					   "shader_type canvas_item;\n"
-					   "uniform sampler3D tex;\n"
-					   "uniform float layer;\n"
-					   "void fragment() {\n"
-					   "  COLOR = textureLod(tex,vec3(UV,layer),0.0);\n"
-					   "}";
+	shader.instantiate();
+	shader->set_code(R"(
+// Texture3DEditor preview shader.
 
-	shader.instance();
-	shader->set_code(shader_3d);
-	material.instance();
+shader_type canvas_item;
+
+uniform sampler3D tex;
+uniform float layer;
+
+void fragment() {
+	COLOR = textureLod(tex, vec3(UV, layer), 0.0);
+}
+)");
+	material.instantiate();
 	material->set_shader(shader);
 }
 
@@ -118,7 +118,7 @@ void Texture3DEditor::_texture_rect_update_area() {
 
 void Texture3DEditor::edit(Ref<Texture3D> p_texture) {
 	if (!texture.is_null()) {
-		texture->remove_change_receptor(this);
+		texture->disconnect("changed", callable_mp(this, &Texture3DEditor::_texture_changed));
 	}
 
 	texture = p_texture;
@@ -128,7 +128,7 @@ void Texture3DEditor::edit(Ref<Texture3D> p_texture) {
 			_make_shaders();
 		}
 
-		texture->add_change_receptor(this);
+		texture->connect("changed", callable_mp(this, &Texture3DEditor::_texture_changed));
 		update();
 		texture_rect->set_material(material);
 		setting = true;
@@ -144,7 +144,6 @@ void Texture3DEditor::edit(Ref<Texture3D> p_texture) {
 }
 
 void Texture3DEditor::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_gui_input"), &Texture3DEditor::_gui_input);
 	ClassDB::bind_method(D_METHOD("_layer_changed"), &Texture3DEditor::_layer_changed);
 }
 
@@ -160,21 +159,20 @@ Texture3DEditor::Texture3DEditor() {
 	layer->set_step(1);
 	layer->set_max(100);
 	add_child(layer);
-	layer->set_anchor(MARGIN_RIGHT, 1);
-	layer->set_anchor(MARGIN_LEFT, 1);
+	layer->set_anchor(SIDE_RIGHT, 1);
+	layer->set_anchor(SIDE_LEFT, 1);
 	layer->set_h_grow_direction(GROW_DIRECTION_BEGIN);
 	layer->set_modulate(Color(1, 1, 1, 0.8));
 	info = memnew(Label);
 	add_child(info);
-	info->set_anchor(MARGIN_RIGHT, 1);
-	info->set_anchor(MARGIN_LEFT, 1);
-	info->set_anchor(MARGIN_BOTTOM, 1);
-	info->set_anchor(MARGIN_TOP, 1);
+	info->set_anchor(SIDE_RIGHT, 1);
+	info->set_anchor(SIDE_LEFT, 1);
+	info->set_anchor(SIDE_BOTTOM, 1);
+	info->set_anchor(SIDE_TOP, 1);
 	info->set_h_grow_direction(GROW_DIRECTION_BEGIN);
 	info->set_v_grow_direction(GROW_DIRECTION_BEGIN);
 	info->add_theme_color_override("font_color", Color(1, 1, 1, 1));
-	info->add_theme_color_override("font_color_shadow", Color(0, 0, 0, 0.5));
-	info->add_theme_color_override("font_color_shadow", Color(0, 0, 0, 0.5));
+	info->add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.5));
 	info->add_theme_constant_override("shadow_as_outline", 1);
 	info->add_theme_constant_override("shadow_offset_x", 2);
 	info->add_theme_constant_override("shadow_offset_y", 2);
@@ -185,7 +183,7 @@ Texture3DEditor::Texture3DEditor() {
 
 Texture3DEditor::~Texture3DEditor() {
 	if (!texture.is_null()) {
-		texture->remove_change_receptor(this);
+		texture->disconnect("changed", callable_mp(this, &Texture3DEditor::_texture_changed));
 	}
 }
 
@@ -208,6 +206,6 @@ void EditorInspectorPlugin3DTexture::parse_begin(Object *p_object) {
 
 Texture3DEditorPlugin::Texture3DEditorPlugin(EditorNode *p_node) {
 	Ref<EditorInspectorPlugin3DTexture> plugin;
-	plugin.instance();
+	plugin.instantiate();
 	add_inspector_plugin(plugin);
 }

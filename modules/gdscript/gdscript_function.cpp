@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -77,14 +77,14 @@ int GDScriptFunction::get_max_stack_size() const {
 }
 
 struct _GDFKC {
-	int order;
+	int order = 0;
 	List<int> pos;
 };
 
 struct _GDFKCS {
-	int order;
+	int order = 0;
 	StringName id;
-	int pos;
+	int pos = 0;
 
 	bool operator<(const _GDFKCS &p_r) const {
 		return order < p_r.order;
@@ -94,8 +94,7 @@ struct _GDFKCS {
 void GDScriptFunction::debug_get_stack_member_state(int p_line, List<Pair<StringName, int>> *r_stackvars) const {
 	int oc = 0;
 	Map<StringName, _GDFKC> sdmap;
-	for (const List<StackDebug>::Element *E = stack_debug.front(); E; E = E->next()) {
-		const StackDebug &sd = E->get();
+	for (const StackDebug &sd : stack_debug) {
 		if (sd.line > p_line) {
 			break;
 		}
@@ -114,27 +113,27 @@ void GDScriptFunction::debug_get_stack_member_state(int p_line, List<Pair<String
 			ERR_CONTINUE(!sdmap.has(sd.identifier));
 
 			sdmap[sd.identifier].pos.pop_back();
-			if (sdmap[sd.identifier].pos.empty()) {
+			if (sdmap[sd.identifier].pos.is_empty()) {
 				sdmap.erase(sd.identifier);
 			}
 		}
 	}
 
 	List<_GDFKCS> stackpositions;
-	for (Map<StringName, _GDFKC>::Element *E = sdmap.front(); E; E = E->next()) {
+	for (const KeyValue<StringName, _GDFKC> &E : sdmap) {
 		_GDFKCS spp;
-		spp.id = E->key();
-		spp.order = E->get().order;
-		spp.pos = E->get().pos.back()->get();
+		spp.id = E.key;
+		spp.order = E.value.order;
+		spp.pos = E.value.pos.back()->get();
 		stackpositions.push_back(spp);
 	}
 
 	stackpositions.sort();
 
-	for (List<_GDFKCS>::Element *E = stackpositions.front(); E; E = E->next()) {
+	for (_GDFKCS &E : stackpositions) {
 		Pair<StringName, int> p;
-		p.first = E->get().id;
-		p.second = E->get().pos;
+		p.first = E.id;
+		p.second = E.pos;
 		r_stackvars->push_back(p);
 	}
 }
@@ -150,6 +149,10 @@ GDScriptFunction::GDScriptFunction() {
 }
 
 GDScriptFunction::~GDScriptFunction() {
+	for (int i = 0; i < lambdas.size(); i++) {
+		memdelete(lambdas[i]);
+	}
+
 #ifdef DEBUG_ENABLED
 
 	MutexLock lock(GDScriptLanguage::get_singleton()->lock);
@@ -244,7 +247,7 @@ Variant GDScriptFunctionState::resume(const Variant &p_arg) {
 	bool completed = true;
 
 	// If the return value is a GDScriptFunctionState reference,
-	// then the function did awaited again after resuming.
+	// then the function did await again after resuming.
 	if (ret.is_ref()) {
 		GDScriptFunctionState *gdfs = Object::cast_to<GDScriptFunctionState>(ret);
 		if (gdfs && gdfs->function == function) {
@@ -258,9 +261,9 @@ Variant GDScriptFunctionState::resume(const Variant &p_arg) {
 
 	if (completed) {
 		if (first_state.is_valid()) {
-			first_state->emit_signal("completed", ret);
+			first_state->emit_signal(SNAME("completed"), ret);
 		} else {
-			emit_signal("completed", ret);
+			emit_signal(SNAME("completed"), ret);
 		}
 
 #ifdef DEBUG_ENABLED
@@ -294,7 +297,6 @@ void GDScriptFunctionState::_bind_methods() {
 GDScriptFunctionState::GDScriptFunctionState() :
 		scripts_list(this),
 		instances_list(this) {
-	function = nullptr;
 }
 
 GDScriptFunctionState::~GDScriptFunctionState() {

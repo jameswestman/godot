@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,12 +31,13 @@
 #ifndef EDITOR_SETTINGS_H
 #define EDITOR_SETTINGS_H
 
+#include "core/input/shortcut.h"
 #include "core/io/config_file.h"
 #include "core/io/resource.h"
 #include "core/object/class_db.h"
 #include "core/os/thread_safe.h"
 #include "core/string/translation.h"
-#include "scene/gui/shortcut.h"
+#include "editor/editor_paths.h"
 
 class EditorPlugin;
 
@@ -83,14 +84,10 @@ private:
 	int last_order;
 
 	Ref<Resource> clipboard;
-	Map<String, Ref<Shortcut>> shortcuts;
+	mutable Map<String, Ref<Shortcut>> shortcuts;
+	Map<String, List<Ref<InputEvent>>> builtin_action_overrides;
 
-	String resource_path;
-	String settings_dir;
-	String data_dir;
-	String cache_dir;
 	String config_file_path;
-	String project_config_dir;
 
 	Vector<String> favorites;
 	Vector<String> recent_dirs;
@@ -106,7 +103,7 @@ private:
 	void _add_property_info_bind(const Dictionary &p_info);
 
 	void _load_defaults(Ref<ConfigFile> p_extra_config = Ref<ConfigFile>());
-	void _load_default_text_editor_theme();
+	void _load_godot2_text_editor_theme();
 	bool _save_text_editor_theme(String p_file);
 	bool _is_default_text_editor_theme(String p_theme_name);
 
@@ -151,12 +148,10 @@ public:
 
 	String get_data_dir() const;
 	String get_templates_dir() const;
-	String get_settings_dir() const;
 	String get_project_settings_dir() const;
 	String get_text_editor_themes_dir() const;
 	String get_script_templates_dir() const;
 	String get_project_script_templates_dir() const;
-	String get_cache_dir() const;
 	String get_feature_profiles_dir() const;
 
 	void set_project_metadata(const String &p_section, const String &p_key, Variant p_data);
@@ -179,11 +174,15 @@ public:
 
 	Vector<String> get_script_templates(const String &p_extension, const String &p_custom_path = String());
 	String get_editor_layouts_config() const;
+	float get_auto_display_scale() const;
 
 	void add_shortcut(const String &p_name, Ref<Shortcut> &p_shortcut);
 	bool is_shortcut(const String &p_name, const Ref<InputEvent> &p_event) const;
 	Ref<Shortcut> get_shortcut(const String &p_name) const;
 	void get_shortcut_list(List<String> *r_shortcuts);
+
+	void set_builtin_action_override(const String &p_name, const Array &p_events);
+	const Array get_builtin_action_overrides(const String &p_name) const;
 
 	void notify_changes();
 
@@ -201,7 +200,10 @@ Variant _EDITOR_DEF(const String &p_setting, const Variant &p_default, bool p_re
 Variant _EDITOR_GET(const String &p_setting);
 
 #define ED_IS_SHORTCUT(p_name, p_ev) (EditorSettings::get_singleton()->is_shortcut(p_name, p_ev))
-Ref<Shortcut> ED_SHORTCUT(const String &p_path, const String &p_name, uint32_t p_keycode = 0);
+Ref<Shortcut> ED_SHORTCUT(const String &p_path, const String &p_name, Key p_keycode = KEY_NONE);
+Ref<Shortcut> ED_SHORTCUT_ARRAY(const String &p_path, const String &p_name, const PackedInt32Array &p_keycodes);
+void ED_SHORTCUT_OVERRIDE(const String &p_path, const String &p_feature, Key p_keycode = KEY_NONE);
+void ED_SHORTCUT_OVERRIDE_ARRAY(const String &p_path, const String &p_feature, const PackedInt32Array &p_keycodes);
 Ref<Shortcut> ED_GET_SHORTCUT(const String &p_path);
 
 #endif // EDITOR_SETTINGS_H

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -35,21 +35,23 @@
 #include "editor/editor_plugin.h"
 #include "scene/resources/texture.h"
 
-class TextureEditor : public Control {
-	GDCLASS(TextureEditor, Control);
+class TexturePreview : public MarginContainer {
+	GDCLASS(TexturePreview, MarginContainer);
 
-	Ref<Texture2D> texture;
+private:
+	TextureRect *texture_display = nullptr;
+
+	TextureRect *checkerboard = nullptr;
+	Label *metadata_label = nullptr;
+
+	void _update_metadata_label_text();
 
 protected:
 	void _notification(int p_what);
-	void _gui_input(Ref<InputEvent> p_event);
-	void _changed_callback(Object *p_changed, const char *p_prop) override;
-	static void _bind_methods();
 
 public:
-	void edit(Ref<Texture2D> p_texture);
-	TextureEditor();
-	~TextureEditor();
+	TextureRect *get_texture_display();
+	TexturePreview(Ref<Texture2D> p_texture, bool p_show_metadata);
 };
 
 class EditorInspectorPluginTexture : public EditorInspectorPlugin {

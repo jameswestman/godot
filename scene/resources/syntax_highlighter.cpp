@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -43,12 +43,10 @@ Dictionary SyntaxHighlighter::get_line_syntax_highlighting(int p_line) {
 		return color_map;
 	}
 
-	ScriptInstance *si = get_script_instance();
-	if (si && si->has_method("_get_line_syntax_highlighting")) {
-		color_map = si->call("_get_line_syntax_highlighting", p_line);
-	} else {
-		color_map = _get_line_syntax_highlighting(p_line);
+	if (!GDVIRTUAL_CALL(_get_line_syntax_highlighting, p_line, color_map)) {
+		color_map = _get_line_syntax_highlighting_impl(p_line);
 	}
+
 	highlighting_cache[p_line] = color_map;
 	return color_map;
 }
@@ -69,9 +67,7 @@ void SyntaxHighlighter::_lines_edited_from(int p_from_line, int p_to_line) {
 void SyntaxHighlighter::clear_highlighting_cache() {
 	highlighting_cache.clear();
 
-	ScriptInstance *si = get_script_instance();
-	if (si && si->has_method("_clear_highlighting_cache")) {
-		si->call("_clear_highlighting_cache");
+	if (GDVIRTUAL_CALL(_clear_highlighting_cache)) {
 		return;
 	}
 	_clear_highlighting_cache();
@@ -83,9 +79,7 @@ void SyntaxHighlighter::update_cache() {
 	if (text_edit == nullptr) {
 		return;
 	}
-	ScriptInstance *si = get_script_instance();
-	if (si && si->has_method("_update_cache")) {
-		si->call("_update_cache");
+	if (GDVIRTUAL_CALL(_update_cache)) {
 		return;
 	}
 	_update_cache();
@@ -110,17 +104,14 @@ TextEdit *SyntaxHighlighter::get_text_edit() {
 }
 
 void SyntaxHighlighter::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_line_syntax_highlighting", "p_line"), &SyntaxHighlighter::get_line_syntax_highlighting);
+	ClassDB::bind_method(D_METHOD("get_line_syntax_highlighting", "line"), &SyntaxHighlighter::get_line_syntax_highlighting);
 	ClassDB::bind_method(D_METHOD("update_cache"), &SyntaxHighlighter::update_cache);
 	ClassDB::bind_method(D_METHOD("clear_highlighting_cache"), &SyntaxHighlighter::clear_highlighting_cache);
 	ClassDB::bind_method(D_METHOD("get_text_edit"), &SyntaxHighlighter::get_text_edit);
 
-	ClassDB::bind_method(D_METHOD("_get_line_syntax_highlighting", "p_line"), &SyntaxHighlighter::_get_line_syntax_highlighting);
-	ClassDB::bind_method(D_METHOD("_update_cache"), &SyntaxHighlighter::_update_cache);
-	ClassDB::bind_method(D_METHOD("_clear_highlighting_cache"), &SyntaxHighlighter::_clear_highlighting_cache);
-
-	BIND_VMETHOD(MethodInfo(Variant::DICTIONARY, "_get_line_syntax_highlighting", PropertyInfo(Variant::INT, "p_line")));
-	BIND_VMETHOD(MethodInfo("_update_cache"));
+	GDVIRTUAL_BIND(_get_line_syntax_highlighting, "line")
+	GDVIRTUAL_BIND(_clear_highlighting_cache)
+	GDVIRTUAL_BIND(_update_cache)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +124,7 @@ static bool _is_hex_symbol(char32_t c) {
 	return ((c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
 }
 
-Dictionary CodeHighlighter::_get_line_syntax_highlighting(int p_line) {
+Dictionary CodeHighlighter::_get_line_syntax_highlighting_impl(int p_line) {
 	Dictionary color_map;
 
 	bool prev_is_char = false;
@@ -408,7 +399,7 @@ void CodeHighlighter::_clear_highlighting_cache() {
 }
 
 void CodeHighlighter::_update_cache() {
-	font_color = text_edit->get_theme_color("font_color");
+	font_color = text_edit->get_theme_color(SNAME("font_color"));
 }
 
 void CodeHighlighter::add_keyword_color(const String &p_keyword, const Color &p_color) {
@@ -532,8 +523,8 @@ void CodeHighlighter::set_color_regions(const Dictionary &p_color_regions) {
 	List<Variant> keys;
 	p_color_regions.get_key_list(&keys);
 
-	for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
-		String key = E->get();
+	for (const Variant &E : keys) {
+		String key = E;
 
 		String start_key = key.get_slice(" ", 0);
 		String end_key = key.get_slice_count(" ") > 1 ? key.get_slice(" ", 1) : String();
@@ -552,7 +543,7 @@ Dictionary CodeHighlighter::get_color_regions() const {
 	Dictionary r_color_regions;
 	for (int i = 0; i < color_regions.size(); i++) {
 		ColorRegion region = color_regions[i];
-		r_color_regions[region.start_key + (region.end_key.empty() ? "" : " " + region.end_key)] = region.color;
+		r_color_regions[region.start_key + (region.end_key.is_empty() ? "" : " " + region.end_key)] = region.color;
 	}
 	return r_color_regions;
 }
@@ -576,11 +567,11 @@ void CodeHighlighter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_member_keyword_colors"), &CodeHighlighter::clear_member_keyword_colors);
 	ClassDB::bind_method(D_METHOD("get_member_keyword_colors"), &CodeHighlighter::get_member_keyword_colors);
 
-	ClassDB::bind_method(D_METHOD("add_color_region", "p_start_key", "p_end_key", "p_color", "p_line_only"), &CodeHighlighter::add_color_region, DEFVAL(false));
-	ClassDB::bind_method(D_METHOD("remove_color_region", "p_start_key"), &CodeHighlighter::remove_color_region);
-	ClassDB::bind_method(D_METHOD("has_color_region", "p_start_key"), &CodeHighlighter::has_color_region);
+	ClassDB::bind_method(D_METHOD("add_color_region", "start_key", "end_key", "color", "line_only"), &CodeHighlighter::add_color_region, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("remove_color_region", "start_key"), &CodeHighlighter::remove_color_region);
+	ClassDB::bind_method(D_METHOD("has_color_region", "start_key"), &CodeHighlighter::has_color_region);
 
-	ClassDB::bind_method(D_METHOD("set_color_regions", "p_color_regions"), &CodeHighlighter::set_color_regions);
+	ClassDB::bind_method(D_METHOD("set_color_regions", "color_regions"), &CodeHighlighter::set_color_regions);
 	ClassDB::bind_method(D_METHOD("clear_color_regions"), &CodeHighlighter::clear_color_regions);
 	ClassDB::bind_method(D_METHOD("get_color_regions"), &CodeHighlighter::get_color_regions);
 

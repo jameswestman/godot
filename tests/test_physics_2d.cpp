@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -199,7 +199,7 @@ protected:
 
 		if (mb.is_valid()) {
 			if (mb->is_pressed()) {
-				Point2 p(mb->get_position().x, mb->get_position().y);
+				Point2 p = mb->get_position();
 
 				if (mb->get_button_index() == 1) {
 					ray_to = p;
@@ -216,10 +216,10 @@ protected:
 		if (mm.is_valid()) {
 			Point2 p = mm->get_position();
 
-			if (mm->get_button_mask() & BUTTON_MASK_LEFT) {
+			if (mm->get_button_mask() & MOUSE_BUTTON_MASK_LEFT) {
 				ray_to = p;
 				_do_ray_query();
-			} else if (mm->get_button_mask() & BUTTON_MASK_RIGHT) {
+			} else if (mm->get_button_mask() & MOUSE_BUTTON_MASK_RIGHT) {
 				ray_from = p;
 				_do_ray_query();
 			}
@@ -243,27 +243,25 @@ protected:
 		Size2 imgsize(5, 5); //vs->texture_get_width(body_shape_data[p_shape].image), vs->texture_get_height(body_shape_data[p_shape].image));
 		vs->canvas_item_add_texture_rect(sprite, Rect2(-imgsize / 2.0, imgsize), body_shape_data[p_shape].image);
 
-		ps->body_set_force_integration_callback(body, this, "_body_moved", sprite);
-		//RID q = ps->query_create(this,"_body_moved",sprite);
-		//ps->query_body_state(q,body);
+		ps->body_set_force_integration_callback(body, callable_mp(this, &TestPhysics2DMainLoop::_body_moved), sprite);
 
 		return body;
 	}
 
-	void _add_plane(const Vector2 &p_normal, real_t p_d) {
+	void _add_world_boundary(const Vector2 &p_normal, real_t p_d) {
 		PhysicsServer2D *ps = PhysicsServer2D::get_singleton();
 
 		Array arr;
 		arr.push_back(p_normal);
 		arr.push_back(p_d);
 
-		RID plane = ps->line_shape_create();
-		ps->shape_set_data(plane, arr);
+		RID world_boundary = ps->world_boundary_shape_create();
+		ps->shape_set_data(world_boundary, arr);
 
 		RID plane_body = ps->body_create();
 		ps->body_set_mode(plane_body, PhysicsServer2D::BODY_MODE_STATIC);
 		ps->body_set_space(plane_body, space);
-		ps->body_add_shape(plane_body, plane);
+		ps->body_add_shape(plane_body, world_boundary);
 	}
 
 	void _add_concave(const Vector<Vector2> &p_points, const Transform2D &p_xform = Transform2D()) {
@@ -310,12 +308,11 @@ protected:
 	}
 
 	static void _bind_methods() {
-		ClassDB::bind_method(D_METHOD("_body_moved"), &TestPhysics2DMainLoop::_body_moved);
 		ClassDB::bind_method(D_METHOD("_ray_query_callback"), &TestPhysics2DMainLoop::_ray_query_callback);
 	}
 
 public:
-	virtual void init() override {
+	virtual void initialize() override {
 		RenderingServer *vs = RenderingServer::get_singleton();
 		PhysicsServer2D *ps = PhysicsServer2D::get_singleton();
 
@@ -323,7 +320,7 @@ public:
 		ps->space_set_active(space, true);
 		ps->set_active(true);
 		ps->area_set_param(space, PhysicsServer2D::AREA_PARAM_GRAVITY_VECTOR, Vector2(0, 1));
-		ps->area_set_param(space, PhysicsServer2D::AREA_PARAM_GRAVITY, 98);
+		ps->area_set_param(space, PhysicsServer2D::AREA_PARAM_GRAVITY, 980);
 
 		{
 			RID vp = vs->viewport_create();
@@ -384,15 +381,15 @@ public:
 		}
 
 		_add_concave(parr);
-		//_add_plane(Vector2(0.0,-1).normalized(),-300);
-		//_add_plane(Vector2(1,0).normalized(),50);
-		//_add_plane(Vector2(-1,0).normalized(),-600);
+		//_add_world_boundary(Vector2(0.0,-1).normalized(),-300);
+		//_add_world_boundary(Vector2(1,0).normalized(),50);
+		//_add_world_boundary(Vector2(-1,0).normalized(),-600);
 	}
 
-	virtual bool idle(float p_time) override {
+	virtual bool process(double p_time) override {
 		return false;
 	}
-	virtual void finish() override {
+	virtual void finalize() override {
 	}
 
 	TestPhysics2DMainLoop() {}

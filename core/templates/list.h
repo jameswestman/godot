@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -135,6 +135,83 @@ public:
 		_FORCE_INLINE_ Element() {}
 	};
 
+	typedef T ValueType;
+
+	struct Iterator {
+		_FORCE_INLINE_ T &operator*() const {
+			return E->get();
+		}
+		_FORCE_INLINE_ T *operator->() const { return &E->get(); }
+		_FORCE_INLINE_ Iterator &operator++() {
+			E = E->next();
+			return *this;
+		}
+		_FORCE_INLINE_ Iterator &operator--() {
+			E = E->prev();
+			return *this;
+		}
+
+		_FORCE_INLINE_ bool operator==(const Iterator &b) const { return E == b.E; }
+		_FORCE_INLINE_ bool operator!=(const Iterator &b) const { return E != b.E; }
+
+		Iterator(Element *p_E) { E = p_E; }
+		Iterator() {}
+		Iterator(const Iterator &p_it) { E = p_it.E; }
+
+	private:
+		Element *E = nullptr;
+	};
+
+	struct ConstIterator {
+		_FORCE_INLINE_ const T &operator*() const {
+			return E->get();
+		}
+		_FORCE_INLINE_ const T *operator->() const { return &E->get(); }
+		_FORCE_INLINE_ ConstIterator &operator++() {
+			E = E->next();
+			return *this;
+		}
+		_FORCE_INLINE_ ConstIterator &operator--() {
+			E = E->prev();
+			return *this;
+		}
+
+		_FORCE_INLINE_ bool operator==(const ConstIterator &b) const { return E == b.E; }
+		_FORCE_INLINE_ bool operator!=(const ConstIterator &b) const { return E != b.E; }
+
+		_FORCE_INLINE_ ConstIterator(const Element *p_E) { E = p_E; }
+		_FORCE_INLINE_ ConstIterator() {}
+		_FORCE_INLINE_ ConstIterator(const ConstIterator &p_it) { E = p_it.E; }
+
+	private:
+		const Element *E = nullptr;
+	};
+
+	_FORCE_INLINE_ Iterator begin() {
+		return Iterator(front());
+	}
+	_FORCE_INLINE_ Iterator end() {
+		return Iterator(nullptr);
+	}
+
+#if 0
+	//to use when replacing find()
+	_FORCE_INLINE_ Iterator find(const K &p_key) {
+		return Iterator(find(p_key));
+	}
+#endif
+	_FORCE_INLINE_ ConstIterator begin() const {
+		return ConstIterator(front());
+	}
+	_FORCE_INLINE_ ConstIterator end() const {
+		return ConstIterator(nullptr);
+	}
+#if 0
+	//to use when replacing find()
+	_FORCE_INLINE_ ConstIterator find(const K &p_key) const {
+		return ConstIterator(find(p_key));
+	}
+#endif
 private:
 	struct _Data {
 		Element *first = nullptr;
@@ -373,7 +450,7 @@ public:
 	/**
 	 * return whether the list is empty
 	 */
-	_FORCE_INLINE_ bool empty() const {
+	_FORCE_INLINE_ bool is_empty() const {
 		return (!_data || !_data->size_cache);
 	}
 
@@ -492,7 +569,7 @@ public:
 		_data->last = p_I;
 	}
 
-	void invert() {
+	void reverse() {
 		int s = size() / 2;
 		Element *F = front();
 		Element *B = back();

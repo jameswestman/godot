@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -38,7 +38,7 @@ class OptionButton : public Button {
 	GDCLASS(OptionButton, Button);
 
 	PopupMenu *popup;
-	int current;
+	int current = -1;
 
 	void _focused(int p_which);
 	void _selected(int p_which);
@@ -56,6 +56,10 @@ protected:
 	static void _bind_methods();
 
 public:
+	// ATTENTION: This is used by the POT generator's scene parser. If the number of properties returned by `_get_items()` ever changes,
+	// this value should be updated to reflect the new size.
+	static const int ITEM_PROPERTY_SIZE = 5;
+
 	void add_icon_item(const Ref<Texture2D> &p_icon, const String &p_label, int p_id = -1);
 	void add_item(const String &p_label, int p_id = -1);
 

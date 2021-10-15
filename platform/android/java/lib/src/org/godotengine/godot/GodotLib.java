@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -34,7 +34,6 @@ import android.app.Activity;
 import android.hardware.SensorEvent;
 import android.view.Surface;
 
-import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 /**
@@ -173,11 +172,6 @@ public class GodotLib {
 	 * @see androidx.fragment.app.Fragment#onPause()
 	 */
 	public static native void focusout();
-
-	/**
-	 * Invoked when the audio thread is started.
-	 */
-	public static native void audio();
 
 	/**
 	 * Used to access Godot global properties.

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -111,6 +111,7 @@ public:
 	struct EditedScene {
 		Node *root = nullptr;
 		String path;
+		uint64_t file_modified_time = 0;
 		Dictionary editor_states;
 		List<Node *> selection;
 		Vector<EditorHistory::History> history_stored;
@@ -131,6 +132,8 @@ private:
 
 	List<PropertyData> clipboard;
 	UndoRedo undo_redo;
+	Vector<Callable> undo_redo_callbacks;
+	Map<StringName, Callable> move_element_functions;
 
 	void _cleanup_history();
 
@@ -144,7 +147,6 @@ private:
 
 public:
 	EditorPlugin *get_editor(Object *p_object);
-	EditorPlugin *get_subeditor(Object *p_object);
 	Vector<EditorPlugin *> get_subeditors(Object *p_object);
 	EditorPlugin *get_editor(String p_name);
 
@@ -166,12 +168,19 @@ public:
 	EditorPlugin *get_editor_plugin(int p_idx);
 
 	UndoRedo &get_undo_redo();
+	void add_undo_redo_inspector_hook_callback(Callable p_callable); // Callbacks should have this signature: void (Object* undo_redo, Object *modified_object, String property, Variant new_value)
+	void remove_undo_redo_inspector_hook_callback(Callable p_callable);
+	const Vector<Callable> get_undo_redo_inspector_hook_callback();
+
+	void add_move_array_element_function(const StringName &p_class, Callable p_callable); // Function should have this signature: void (Object* undo_redo, Object *modified_object, String array_prefix, int element_index, int new_position)
+	void remove_move_array_element_function(const StringName &p_class);
+	Callable get_move_array_element_function(const StringName &p_class) const;
 
 	void save_editor_global_states();
 	void restore_editor_global_states();
 
 	void add_custom_type(const String &p_type, const String &p_inherits, const Ref<Script> &p_script, const Ref<Texture2D> &p_icon);
-	Object *instance_custom_type(const String &p_type, const String &p_inherits);
+	Variant instance_custom_type(const String &p_type, const String &p_inherits);
 	void remove_custom_type(const String &p_type);
 	const Map<String, Vector<CustomType>> &get_custom_types() const { return custom_types; }
 
@@ -184,13 +193,15 @@ public:
 	Node *get_edited_scene_root(int p_idx = -1);
 	int get_edited_scene_count() const;
 	Vector<EditedScene> get_edited_scenes() const;
-	String get_scene_title(int p_idx) const;
+	String get_scene_title(int p_idx, bool p_always_strip_extension = false) const;
 	String get_scene_path(int p_idx) const;
 	String get_scene_type(int p_idx) const;
 	void set_scene_path(int p_idx, const String &p_path);
 	Ref<Script> get_scene_root_script(int p_idx) const;
 	void set_edited_scene_version(uint64_t version, int p_scene_idx = -1);
 	uint64_t get_scene_version(int p_idx) const;
+	void set_scene_modified_time(int p_idx, uint64_t p_time);
+	uint64_t get_scene_modified_time(int p_idx) const;
 	void clear_edited_scenes();
 	void set_edited_scene_live_edit_root(const NodePath &p_root);
 	NodePath get_edited_scene_live_edit_root();
@@ -208,7 +219,7 @@ public:
 
 	bool script_class_is_parent(const String &p_class, const String &p_inherits);
 	StringName script_class_get_base(const String &p_class) const;
-	Object *script_class_instance(const String &p_class);
+	Variant script_class_instance(const String &p_class);
 
 	Ref<Script> script_class_load_script(const String &p_class) const;
 

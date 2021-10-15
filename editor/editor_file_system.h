@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,11 +31,14 @@
 #ifndef EDITOR_FILE_SYSTEM_H
 #define EDITOR_FILE_SYSTEM_H
 
-#include "core/os/dir_access.h"
+#include "core/io/dir_access.h"
 #include "core/os/thread.h"
 #include "core/os/thread_safe.h"
+#include "core/templates/safe_refcount.h"
 #include "core/templates/set.h"
+#include "core/templates/thread_work_pool.h"
 #include "scene/main/node.h"
+
 class FileAccess;
 
 struct EditorProgressBG;
@@ -52,6 +55,7 @@ class EditorFileSystemDirectory : public Object {
 	struct FileInfo {
 		String file;
 		StringName type;
+		ResourceUID::ID uid = ResourceUID::INVALID_ID;
 		uint64_t modified_time = 0;
 		uint64_t import_modified_time = 0;
 		bool import_valid = false;
@@ -99,6 +103,8 @@ public:
 	int find_file_index(const String &p_file) const;
 	int find_dir_index(const String &p_dir) const;
 
+	void force_update();
+
 	EditorFileSystemDirectory();
 	~EditorFileSystemDirectory();
 };
@@ -127,7 +133,7 @@ class EditorFileSystem : public Node {
 	};
 
 	bool use_threads;
-	Thread *thread;
+	Thread thread;
 	static void _thread_func(void *_userdata);
 
 	EditorFileSystemDirectory *new_filesystem;
@@ -143,7 +149,6 @@ class EditorFileSystem : public Node {
 
 	void _scan_filesystem();
 
-	Set<String> late_added_files; //keep track of files that were added, these will be re-scanned
 	Set<String> late_update_files;
 
 	void _save_late_updated_files();
@@ -155,6 +160,7 @@ class EditorFileSystem : public Node {
 	/* Used for reading the filesystem cache file */
 	struct FileCache {
 		String type;
+		ResourceUID::ID uid = ResourceUID::INVALID_ID;
 		uint64_t modification_time = 0;
 		uint64_t import_modification_time = 0;
 		Vector<String> deps;
@@ -184,12 +190,13 @@ class EditorFileSystem : public Node {
 
 	void _delete_internal_files(String p_file);
 
+	Set<String> textfile_extensions;
 	Set<String> valid_extensions;
 	Set<String> import_extensions;
 
 	void _scan_new_dir(EditorFileSystemDirectory *p_dir, DirAccess *da, const ScanProgress &p_progress);
 
-	Thread *thread_sources;
+	Thread thread_sources;
 	bool scanning_changes;
 	bool scanning_changes_done;
 
@@ -202,7 +209,7 @@ class EditorFileSystem : public Node {
 
 	void _update_extensions();
 
-	void _reimport_file(const String &p_file);
+	void _reimport_file(const String &p_file, const Map<StringName, Variant> *p_custom_options = nullptr, const String &p_custom_importer = String());
 	Error _reimport_group(const String &p_group_file, const Vector<String> &p_files);
 
 	bool _test_for_reimport(const String &p_path, bool p_only_imported_files);
@@ -213,14 +220,16 @@ class EditorFileSystem : public Node {
 
 	struct ImportFile {
 		String path;
+		String importer;
+		bool threaded = false;
 		int order = 0;
 		bool operator<(const ImportFile &p_if) const {
-			return order < p_if.order;
+			return order == p_if.order ? (importer < p_if.importer) : (order < p_if.order);
 		}
 	};
 
 	void _scan_script_classes(EditorFileSystemDirectory *p_dir);
-	volatile bool update_script_classes_queued;
+	SafeFlag update_script_classes_queued;
 	void _queue_update_script_classes();
 
 	String _get_global_script_class(const String &p_type, const String &p_path, String *r_extends, String *r_icon_path) const;
@@ -234,6 +243,20 @@ class EditorFileSystem : public Node {
 	void _move_group_files(EditorFileSystemDirectory *efd, const String &p_group_file, const String &p_new_location);
 
 	Set<String> group_file_cache;
+
+	ThreadWorkPool import_threads;
+
+	struct ImportThreadData {
+		const ImportFile *reimport_files;
+		int reimport_from;
+		int max_index = 0;
+	};
+
+	void _reimport_thread(uint32_t p_index, ImportThreadData *p_import_data);
+
+	static ResourceUID::ID _resource_saver_get_resource_id_for_path(const String &p_path, bool p_generate);
+
+	bool _scan_extensions();
 
 protected:
 	void _notification(int p_what);
@@ -256,10 +279,14 @@ public:
 
 	void reimport_files(const Vector<String> &p_files);
 
+	void reimport_file_with_custom_parameters(const String &p_file, const String &p_importer, const Map<StringName, Variant> &p_custom_params);
+
 	void update_script_classes();
 
 	bool is_group_file(const String &p_path) const;
 	void move_group_file(const String &p_path, const String &p_new_path);
+
+	static bool _should_skip_directory(const String &p_path);
 
 	EditorFileSystem();
 	~EditorFileSystem();

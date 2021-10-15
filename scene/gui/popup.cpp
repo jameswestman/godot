@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -71,7 +71,8 @@ void Popup::_notification(int p_what) {
 				_initialize_visible_parents();
 			} else {
 				_deinitialize_visible_parents();
-				emit_signal("popup_hide");
+				emit_signal(SNAME("popup_hide"));
+				popped_up = false;
 			}
 
 		} break;
@@ -103,9 +104,9 @@ void Popup::_close_pressed() {
 
 	_deinitialize_visible_parents();
 
-	call_deferred("hide");
+	call_deferred(SNAME("hide"));
 
-	emit_signal("cancelled");
+	emit_signal(SNAME("cancelled"));
 }
 
 void Popup::set_as_minsize() {
@@ -193,7 +194,7 @@ Popup::~Popup() {
 }
 
 Size2 PopupPanel::_get_contents_minimum_size() const {
-	Ref<StyleBox> p = get_theme_stylebox("panel", get_class_name());
+	Ref<StyleBox> p = get_theme_stylebox(SNAME("panel"), get_class_name());
 
 	Size2 ms;
 
@@ -216,7 +217,7 @@ Size2 PopupPanel::_get_contents_minimum_size() const {
 }
 
 void PopupPanel::_update_child_rects() {
-	Ref<StyleBox> p = get_theme_stylebox("panel", get_class_name());
+	Ref<StyleBox> p = get_theme_stylebox(SNAME("panel"), get_class_name());
 
 	Vector2 cpos(p->get_offset());
 	Vector2 csize(get_size() - p->get_minimum_size());
@@ -243,9 +244,9 @@ void PopupPanel::_update_child_rects() {
 
 void PopupPanel::_notification(int p_what) {
 	if (p_what == NOTIFICATION_THEME_CHANGED) {
-		panel->add_theme_style_override("panel", get_theme_stylebox("panel", get_class_name()));
+		panel->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), get_class_name()));
 	} else if (p_what == NOTIFICATION_READY || p_what == NOTIFICATION_ENTER_TREE) {
-		panel->add_theme_style_override("panel", get_theme_stylebox("panel", get_class_name()));
+		panel->add_theme_style_override("panel", get_theme_stylebox(SNAME("panel"), get_class_name()));
 		_update_child_rects();
 	} else if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
 		_update_child_rects();
@@ -254,5 +255,5 @@ void PopupPanel::_notification(int p_what) {
 
 PopupPanel::PopupPanel() {
 	panel = memnew(Panel);
-	add_child(panel);
+	add_child(panel, false, INTERNAL_MODE_FRONT);
 }

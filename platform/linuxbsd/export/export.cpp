@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,7 +30,7 @@
 
 #include "export.h"
 
-#include "core/os/file_access.h"
+#include "core/io/file_access.h"
 #include "editor/editor_export.h"
 #include "platform/linuxbsd/logo.gen.h"
 #include "scene/resources/texture.h"
@@ -39,11 +39,11 @@ static Error fixup_embedded_pck(const String &p_path, int64_t p_embedded_start, 
 
 void register_linuxbsd_exporter() {
 	Ref<EditorExportPlatformPC> platform;
-	platform.instance();
+	platform.instantiate();
 
 	Ref<Image> img = memnew(Image(_linuxbsd_logo));
 	Ref<ImageTexture> logo;
-	logo.instance();
+	logo.instantiate();
 	logo->create_from_image(img);
 	platform->set_logo(logo);
 	platform->set_name("Linux/X11");
@@ -53,7 +53,7 @@ void register_linuxbsd_exporter() {
 	platform->set_debug_32("linux_x11_32_debug");
 	platform->set_release_64("linux_x11_64_release");
 	platform->set_debug_64("linux_x11_64_debug");
-	platform->set_os_name("X11");
+	platform->set_os_name("LinuxBSD");
 	platform->set_chmod_flags(0755);
 	platform->set_fixup_embedded_pck_func(&fixup_embedded_pck);
 

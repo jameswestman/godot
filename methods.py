@@ -6,9 +6,11 @@ from collections import OrderedDict
 
 # We need to define our own `Action` method to control the verbosity of output
 # and whenever we need to run those commands in a subprocess on some platforms.
-from SCons.Script import Action
 from SCons import Node
+from SCons.Script import Action
+from SCons.Script import ARGUMENTS
 from SCons.Script import Glob
+from SCons.Variables.BoolVariable import _text2bool
 from platform_methods import run_in_subprocess
 
 
@@ -54,15 +56,25 @@ def disable_warnings(self):
         self.Append(CXXFLAGS=["-w"])
 
 
+def force_optimization_on_debug(self):
+    # 'self' is the environment
+    if self["target"] != "debug":
+        return
+
+    if self.msvc:
+        self.Append(CCFLAGS=["/O2"])
+    else:
+        self.Append(CCFLAGS=["-O3"])
+
+
 def add_module_version_string(self, s):
     self.module_version_string += "." + s
 
 
 def update_version(module_version_string=""):
-
     build_name = "custom_build"
     if os.getenv("BUILD_NAME") != None:
-        build_name = os.getenv("BUILD_NAME")
+        build_name = str(os.getenv("BUILD_NAME"))
         print("Using custom build name: " + build_name)
 
     import version
@@ -77,7 +89,13 @@ def update_version(module_version_string=""):
     f.write("#define VERSION_MAJOR " + str(version.major) + "\n")
     f.write("#define VERSION_MINOR " + str(version.minor) + "\n")
     f.write("#define VERSION_PATCH " + str(version.patch) + "\n")
-    f.write('#define VERSION_STATUS "' + str(version.status) + '"\n')
+    # For dev snapshots (alpha, beta, RC, etc.) we do not commit status change to Git,
+    # so this define provides a way to override it without having to modify the source.
+    godot_status = str(version.status)
+    if os.getenv("GODOT_VERSION_STATUS") != None:
+        godot_status = str(os.getenv("GODOT_VERSION_STATUS"))
+        print("Using version status '{}', overriding the original '{}'.".format(godot_status, str(version.status)))
+    f.write('#define VERSION_STATUS "' + godot_status + '"\n')
     f.write('#define VERSION_BUILD "' + str(build_name) + '"\n')
     f.write('#define VERSION_MODULE_CONFIG "' + str(version.module_config) + module_version_string + '"\n')
     f.write("#define VERSION_YEAR " + str(version.year) + "\n")
@@ -145,34 +163,109 @@ def parse_cg_file(fname, uniforms, sizes, conditionals):
     fs.close()
 
 
-def detect_modules(at_path):
-    module_list = OrderedDict()  # name : path
+def get_cmdline_bool(option, default):
+    """We use `ARGUMENTS.get()` to check if options were manually overridden on the command line,
+    and SCons' _text2bool helper to convert them to booleans, otherwise they're handled as strings.
+    """
+    cmdline_val = ARGUMENTS.get(option)
+    if cmdline_val is not None:
+        return _text2bool(cmdline_val)
+    else:
+        return default
 
-    modules_glob = os.path.join(at_path, "*")
-    files = glob.glob(modules_glob)
-    files.sort()  # so register_module_types does not change that often, and also plugins are registered in alphabetic order
 
-    for x in files:
-        if not is_module(x):
-            continue
-        name = os.path.basename(x)
-        path = x.replace("\\", "/")  # win32
-        module_list[name] = path
+def detect_modules(search_path, recursive=False):
+    """Detects and collects a list of C++ modules at specified path
 
-    return module_list
+    `search_path` - a directory path containing modules. The path may point to
+    a single module, which may have other nested modules. A module must have
+    "register_types.h", "SCsub", "config.py" files created to be detected.
+
+    `recursive` - if `True`, then all subdirectories are searched for modules as
+    specified by the `search_path`, otherwise collects all modules under the
+    `search_path` directory. If the `search_path` is a module, it is collected
+    in all cases.
+
+    Returns an `OrderedDict` with module names as keys, and directory paths as
+    values. If a path is relative, then it is a built-in module. If a path is
+    absolute, then it is a custom module collected outside of the engine source.
+    """
+    modules = OrderedDict()
+
+    def add_module(path):
+        module_name = os.path.basename(path)
+        module_path = path.replace("\\", "/")  # win32
+        modules[module_name] = module_path
+
+    def is_engine(path):
+        # Prevent recursively detecting modules in self and other
+        # Godot sources when using `custom_modules` build option.
+        version_path = os.path.join(path, "version.py")
+        if os.path.exists(version_path):
+            with open(version_path) as f:
+                if 'short_name = "godot"' in f.read():
+                    return True
+        return False
+
+    def get_files(path):
+        files = glob.glob(os.path.join(path, "*"))
+        # Sort so that `register_module_types` does not change that often,
+        # and plugins are registered in alphabetic order as well.
+        files.sort()
+        return files
+
+    if not recursive:
+        if is_module(search_path):
+            add_module(search_path)
+        for path in get_files(search_path):
+            if is_engine(path):
+                continue
+            if is_module(path):
+                add_module(path)
+    else:
+        to_search = [search_path]
+        while to_search:
+            path = to_search.pop()
+            if is_module(path):
+                add_module(path)
+            for child in get_files(path):
+                if not os.path.isdir(child):
+                    continue
+                if is_engine(child):
+                    continue
+                to_search.insert(0, child)
+    return modules
 
 
 def is_module(path):
-    return os.path.isdir(path) and os.path.exists(os.path.join(path, "SCsub"))
+    if not os.path.isdir(path):
+        return False
+    must_exist = ["register_types.h", "SCsub", "config.py"]
+    for f in must_exist:
+        if not os.path.exists(os.path.join(path, f)):
+            return False
+    return True
 
 
-def write_modules(module_list):
+def write_disabled_classes(class_list):
+    f = open("core/disabled_classes.gen.h", "w")
+    f.write("/* THIS FILE IS GENERATED DO NOT EDIT */\n")
+    f.write("#ifndef DISABLED_CLASSES_GEN_H\n")
+    f.write("#define DISABLED_CLASSES_GEN_H\n\n")
+    for c in class_list:
+        cs = c.strip()
+        if cs != "":
+            f.write("#define ClassDB_Disable_" + cs + " 1\n")
+    f.write("\n#endif\n")
+
+
+def write_modules(modules):
     includes_cpp = ""
     preregister_cpp = ""
     register_cpp = ""
     unregister_cpp = ""
 
-    for name, path in module_list.items():
+    for name, path in modules.items():
         try:
             with open(os.path.join(path, "register_types.h")):
                 includes_cpp += '#include "' + path + '/register_types.h"\n'
@@ -230,8 +323,6 @@ def convert_custom_modules_path(path):
         raise ValueError(err_msg % "point to an existing directory.")
     if path == os.path.realpath("modules"):
         raise ValueError(err_msg % "be a directory other than built-in `modules` directory.")
-    if is_module(path):
-        raise ValueError(err_msg % "point to a directory with modules, not a single module.")
     return path
 
 
@@ -239,7 +330,7 @@ def disable_module(self):
     self.disabled_modules.append(self.current_module)
 
 
-def module_check_dependencies(self, module, dependencies):
+def module_check_dependencies(self, module, dependencies, silent=False):
     """
     Checks if module dependencies are enabled for a given module,
     and prints a warning if they aren't.
@@ -253,11 +344,12 @@ def module_check_dependencies(self, module, dependencies):
             missing_deps.append(dep)
 
     if missing_deps != []:
-        print(
-            "Disabling '{}' module as the following dependencies are not satisfied: {}".format(
-                module, ", ".join(missing_deps)
+        if not silent:
+            print(
+                "Disabling '{}' module as the following dependencies are not satisfied: {}".format(
+                    module, ", ".join(missing_deps)
+                )
             )
-        )
         return False
     else:
         return True
@@ -271,7 +363,7 @@ def use_windows_spawn_fix(self, platform=None):
     # On Windows, due to the limited command line length, when creating a static library
     # from a very high number of objects SCons will invoke "ar" once per object file;
     # that makes object files with same names to be overwritten so the last wins and
-    # the library looses symbols defined by overwritten objects.
+    # the library loses symbols defined by overwritten objects.
     # By enabling quick append instead of the default mode (replacing), libraries will
     # got built correctly regardless the invocation strategy.
     # Furthermore, since SCons will rebuild the library from scratch when an object file
@@ -415,7 +507,7 @@ def detect_visual_c_compiler_version(tools_env):
     # and not scons setup environment (env)... so make sure you call the right environment on it or it will fail to detect
     # the proper vc version that will be called
 
-    # There is no flag to give to visual c compilers to set the architecture, ie scons bits argument (32,64,ARM etc)
+    # There is no flag to give to visual c compilers to set the architecture, i.e. scons bits argument (32,64,ARM etc)
     # There are many different cl.exe files that are run, and each one compiles & links to a different architecture
     # As far as I know, the only way to figure out what compiler will be run when Scons calls cl.exe via Program()
     # is to check the PATH variable and figure out which one will be called first. Code below does that and returns:
@@ -570,7 +662,7 @@ def generate_vs_project(env, num_jobs):
                 'call "' + batch_file + '" !plat!',
             ]
 
-            # windows allows us to have spaces in paths, so we need
+            # Windows allows us to have spaces in paths, so we need
             # to double quote off the directory. However, the path ends
             # in a backslash, so we need to remove this, lest it escape the
             # last double quote off, confusing MSBuild
@@ -582,6 +674,9 @@ def generate_vs_project(env, num_jobs):
                 "tools=!tools!",
                 "-j%s" % num_jobs,
             ]
+
+            if env["tests"]:
+                common_build_postfix.append("tests=yes")
 
             if env["custom_modules"]:
                 common_build_postfix.append("custom_modules=%s" % env["custom_modules"])
@@ -595,6 +690,8 @@ def generate_vs_project(env, num_jobs):
         add_to_vs_project(env, env.modules_sources)
         add_to_vs_project(env, env.scene_sources)
         add_to_vs_project(env, env.servers_sources)
+        if env["tests"]:
+            add_to_vs_project(env, env.tests_sources)
         add_to_vs_project(env, env.editor_sources)
 
         for header in glob_recursive("**/*.h"):
@@ -719,9 +816,18 @@ def get_compiler_version(env):
             return None
     else:  # TODO: Implement for MSVC
         return None
-    match = re.search("[0-9]+\.[0-9.]+", version)
+    match = re.search(
+        "(?:(?<=version )|(?<=\) )|(?<=^))"
+        "(?P<major>\d+)"
+        "(?:\.(?P<minor>\d*))?"
+        "(?:\.(?P<patch>\d*))?"
+        "(?:-(?P<metadata1>[0-9a-zA-Z-]*))?"
+        "(?:\+(?P<metadata2>[0-9a-zA-Z-]*))?"
+        "(?: (?P<date>[0-9]{8}|[0-9]{6})(?![0-9a-zA-Z]))?",
+        version,
+    )
     if match is not None:
-        return list(map(int, match.group().split(".")))
+        return match.groupdict()
     else:
         return None
 
@@ -732,6 +838,10 @@ def using_gcc(env):
 
 def using_clang(env):
     return "clang" in os.path.basename(env["CC"])
+
+
+def using_emcc(env):
+    return "emcc" in os.path.basename(env["CC"])
 
 
 def show_progress(env):
@@ -836,9 +946,12 @@ def show_progress(env):
 
     def progress_finish(target, source, env):
         nonlocal node_count, progressor
-        with open(node_count_fname, "w") as f:
-            f.write("%d\n" % node_count)
-        progressor.delete(progressor.file_list())
+        try:
+            with open(node_count_fname, "w") as f:
+                f.write("%d\n" % node_count)
+            progressor.delete(progressor.file_list())
+        except Exception:
+            pass
 
     try:
         with open(node_count_fname) as f:

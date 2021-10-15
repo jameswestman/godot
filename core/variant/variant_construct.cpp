@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -28,489 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#include "variant.h"
-
-#include "core/core_string_names.h"
-#include "core/crypto/crypto_core.h"
-#include "core/debugger/engine_debugger.h"
-#include "core/io/compression.h"
-#include "core/object/class_db.h"
-#include "core/os/os.h"
-#include "core/templates/local_vector.h"
-#include "core/templates/oa_hash_map.h"
-
-template <class T, class... P>
-class VariantConstructor {
-	template <size_t... Is>
-	static _FORCE_INLINE_ void construct_helper(T &base, const Variant **p_args, Callable::CallError &r_error, IndexSequence<Is...>) {
-		r_error.error = Callable::CallError::CALL_OK;
-
-#ifdef DEBUG_METHODS_ENABLED
-		base = T(VariantCasterAndValidate<P>::cast(p_args, Is, r_error)...);
-#else
-		base = T(VariantCaster<P>::cast(*p_args[Is])...);
-#endif
-	}
-
-	template <size_t... Is>
-	static _FORCE_INLINE_ void validated_construct_helper(T &base, const Variant **p_args, IndexSequence<Is...>) {
-		base = T((*VariantGetInternalPtr<P>::get_ptr(p_args[Is]))...);
-	}
-
-	template <size_t... Is>
-	static _FORCE_INLINE_ void ptr_construct_helper(void *base, const void **p_args, IndexSequence<Is...>) {
-		PtrToArg<T>::encode(T(PtrToArg<P>::convert(p_args[Is])...), base);
-	}
-
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		r_error.error = Callable::CallError::CALL_OK;
-		VariantTypeChanger<T>::change(&r_ret);
-		construct_helper(*VariantGetInternalPtr<T>::get_ptr(&r_ret), p_args, r_error, BuildIndexSequence<sizeof...(P)>{});
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<T>::change(&r_ret);
-		validated_construct_helper(*VariantGetInternalPtr<T>::get_ptr(&r_ret), p_args, BuildIndexSequence<sizeof...(P)>{});
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		ptr_construct_helper(base, p_args, BuildIndexSequence<sizeof...(P)>{});
-	}
-
-	static int get_argument_count() {
-		return sizeof...(P);
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return call_get_argument_type<P...>(p_arg);
-	}
-
-	static Variant::Type get_base_type() {
-		return GetTypeInfo<T>::VARIANT_TYPE;
-	}
-};
-
-class VariantConstructorObject {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		VariantInternal::clear(&r_ret);
-		if (p_args[0]->get_type() == Variant::NIL) {
-			VariantInternal::object_assign_null(&r_ret);
-			r_error.error = Callable::CallError::CALL_OK;
-		} else if (p_args[0]->get_type() == Variant::OBJECT) {
-			VariantInternal::object_assign(&r_ret, p_args[0]);
-			r_error.error = Callable::CallError::CALL_OK;
-		} else {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::OBJECT;
-		}
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantInternal::clear(&r_ret);
-		VariantInternal::object_assign(&r_ret, p_args[0]);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Object *>::encode(PtrToArg<Object *>::convert(p_args[0]), base);
-	}
-
-	static int get_argument_count() {
-		return 1;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::OBJECT;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::OBJECT;
-	}
-};
-
-class VariantConstructorNilObject {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		if (p_args[0]->get_type() != Variant::NIL) {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::NIL;
-		}
-
-		VariantInternal::clear(&r_ret);
-		VariantInternal::object_assign_null(&r_ret);
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantInternal::clear(&r_ret);
-		VariantInternal::object_assign_null(&r_ret);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Object *>::encode(nullptr, base);
-	}
-
-	static int get_argument_count() {
-		return 1;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::NIL;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::OBJECT;
-	}
-};
-
-class VariantConstructorCallableArgs {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		ObjectID object_id;
-		StringName method;
-
-		if (p_args[0]->get_type() == Variant::NIL) {
-			// leave as is
-		} else if (p_args[0]->get_type() == Variant::OBJECT) {
-			object_id = VariantInternal::get_object_id(p_args[0]);
-		} else {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::OBJECT;
-			return;
-		}
-
-		if (p_args[1]->get_type() == Variant::STRING_NAME) {
-			method = *VariantGetInternalPtr<StringName>::get_ptr(p_args[1]);
-		} else if (p_args[1]->get_type() == Variant::STRING) {
-			method = *VariantGetInternalPtr<String>::get_ptr(p_args[1]);
-		} else {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 1;
-			r_error.expected = Variant::STRING_NAME;
-			return;
-		}
-
-		VariantTypeChanger<Callable>::change(&r_ret);
-		*VariantGetInternalPtr<Callable>::get_ptr(&r_ret) = Callable(object_id, method);
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<Callable>::change(&r_ret);
-		*VariantGetInternalPtr<Callable>::get_ptr(&r_ret) = Callable(VariantInternal::get_object_id(p_args[0]), *VariantGetInternalPtr<StringName>::get_ptr(p_args[1]));
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Callable>::encode(Callable(PtrToArg<Object *>::convert(p_args[0]), PtrToArg<StringName>::convert(p_args[1])), base);
-	}
-
-	static int get_argument_count() {
-		return 2;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		if (p_arg == 0) {
-			return Variant::OBJECT;
-		} else {
-			return Variant::STRING_NAME;
-		}
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::CALLABLE;
-	}
-};
-
-class VariantConstructorSignalArgs {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		ObjectID object_id;
-		StringName method;
-
-		if (p_args[0]->get_type() == Variant::NIL) {
-			// leave as is
-		} else if (p_args[0]->get_type() == Variant::OBJECT) {
-			object_id = VariantInternal::get_object_id(p_args[0]);
-		} else {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::OBJECT;
-			return;
-		}
-
-		if (p_args[1]->get_type() == Variant::STRING_NAME) {
-			method = *VariantGetInternalPtr<StringName>::get_ptr(p_args[1]);
-		} else if (p_args[1]->get_type() == Variant::STRING) {
-			method = *VariantGetInternalPtr<String>::get_ptr(p_args[1]);
-		} else {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 1;
-			r_error.expected = Variant::STRING_NAME;
-			return;
-		}
-
-		VariantTypeChanger<Signal>::change(&r_ret);
-		*VariantGetInternalPtr<Signal>::get_ptr(&r_ret) = Signal(object_id, method);
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<Signal>::change(&r_ret);
-		*VariantGetInternalPtr<Signal>::get_ptr(&r_ret) = Signal(VariantInternal::get_object_id(p_args[0]), *VariantGetInternalPtr<StringName>::get_ptr(p_args[1]));
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Signal>::encode(Signal(PtrToArg<Object *>::convert(p_args[0]), PtrToArg<StringName>::convert(p_args[1])), base);
-	}
-
-	static int get_argument_count() {
-		return 2;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		if (p_arg == 0) {
-			return Variant::OBJECT;
-		} else {
-			return Variant::STRING_NAME;
-		}
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::SIGNAL;
-	}
-};
-
-template <class T>
-class VariantConstructorToArray {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		if (p_args[0]->get_type() != GetTypeInfo<T>::VARIANT_TYPE) {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = GetTypeInfo<T>::VARIANT_TYPE;
-			return;
-		}
-
-		VariantTypeChanger<Array>::change(&r_ret);
-		Array &dst_arr = *VariantGetInternalPtr<Array>::get_ptr(&r_ret);
-		const T &src_arr = *VariantGetInternalPtr<T>::get_ptr(p_args[0]);
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr[i] = src_arr[i];
-		}
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<Array>::change(&r_ret);
-		Array &dst_arr = *VariantGetInternalPtr<Array>::get_ptr(&r_ret);
-		const T &src_arr = *VariantGetInternalPtr<T>::get_ptr(p_args[0]);
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr[i] = src_arr[i];
-		}
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		Array dst_arr;
-		T src_arr = PtrToArg<T>::convert(p_args[0]);
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr[i] = src_arr[i];
-		}
-
-		PtrToArg<Array>::encode(dst_arr, base);
-	}
-
-	static int get_argument_count() {
-		return 1;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return GetTypeInfo<T>::VARIANT_TYPE;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::ARRAY;
-	}
-};
-
-template <class T>
-class VariantConstructorFromArray {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		if (p_args[0]->get_type() != Variant::ARRAY) {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::ARRAY;
-			return;
-		}
-
-		VariantTypeChanger<T>::change(&r_ret);
-		const Array &src_arr = *VariantGetInternalPtr<Array>::get_ptr(p_args[0]);
-		T &dst_arr = *VariantGetInternalPtr<T>::get_ptr(&r_ret);
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr.write[i] = src_arr[i];
-		}
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<T>::change(&r_ret);
-		const Array &src_arr = *VariantGetInternalPtr<Array>::get_ptr(p_args[0]);
-		T &dst_arr = *VariantGetInternalPtr<T>::get_ptr(&r_ret);
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr.write[i] = src_arr[i];
-		}
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		Array src_arr = PtrToArg<Array>::convert(p_args[0]);
-		T dst_arr;
-
-		int size = src_arr.size();
-		dst_arr.resize(size);
-		for (int i = 0; i < size; i++) {
-			dst_arr.write[i] = src_arr[i];
-		}
-
-		PtrToArg<T>::encode(dst_arr, base);
-	}
-
-	static int get_argument_count() {
-		return 1;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::ARRAY;
-	}
-
-	static Variant::Type get_base_type() {
-		return GetTypeInfo<T>::VARIANT_TYPE;
-	}
-};
-
-class VariantConstructorNil {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		if (p_args[0]->get_type() != Variant::NIL) {
-			r_error.error = Callable::CallError::CALL_ERROR_INVALID_ARGUMENT;
-			r_error.argument = 0;
-			r_error.expected = Variant::NIL;
-			return;
-		}
-
-		r_error.error = Callable::CallError::CALL_OK;
-		VariantInternal::clear(&r_ret);
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantInternal::clear(&r_ret);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Variant>::encode(Variant(), base);
-	}
-
-	static int get_argument_count() {
-		return 1;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::NIL;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::NIL;
-	}
-};
-
-template <class T>
-class VariantConstructNoArgs {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		VariantTypeChanger<T>::change_and_reset(&r_ret);
-		r_error.error = Callable::CallError::CALL_OK;
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantTypeChanger<T>::change_and_reset(&r_ret);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<T>::encode(T(), base);
-	}
-
-	static int get_argument_count() {
-		return 0;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::NIL;
-	}
-
-	static Variant::Type get_base_type() {
-		return GetTypeInfo<T>::VARIANT_TYPE;
-	}
-};
-
-class VariantConstructNoArgsNil {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		VariantInternal::clear(&r_ret);
-		r_error.error = Callable::CallError::CALL_OK;
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantInternal::clear(&r_ret);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		ERR_FAIL_MSG("can't ptrcall nil constructor");
-	}
-
-	static int get_argument_count() {
-		return 0;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::NIL;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::NIL;
-	}
-};
-
-class VariantConstructNoArgsObject {
-public:
-	static void construct(Variant &r_ret, const Variant **p_args, Callable::CallError &r_error) {
-		VariantInternal::clear(&r_ret);
-		VariantInternal::object_assign_null(&r_ret);
-		r_error.error = Callable::CallError::CALL_OK;
-	}
-
-	static void validated_construct(Variant &r_ret, const Variant **p_args) {
-		VariantInternal::clear(&r_ret);
-		VariantInternal::object_assign_null(&r_ret);
-	}
-	static void ptr_construct(void *base, const void **p_args) {
-		PtrToArg<Object *>::encode(nullptr, base);
-	}
-
-	static int get_argument_count() {
-		return 0;
-	}
-
-	static Variant::Type get_argument_type(int p_arg) {
-		return Variant::NIL;
-	}
-
-	static Variant::Type get_base_type() {
-		return Variant::OBJECT;
-	}
-};
+#include "variant_construct.h"
 
 struct VariantConstructData {
 	void (*construct)(Variant &r_base, const Variant **p_args, Callable::CallError &r_error);
@@ -596,6 +114,7 @@ void Variant::_register_variant_constructors() {
 	add_constructor<VariantConstructNoArgs<Transform2D>>(sarray());
 	add_constructor<VariantConstructor<Transform2D, Transform2D>>(sarray("from"));
 	add_constructor<VariantConstructor<Transform2D, float, Vector2>>(sarray("rotation", "position"));
+	add_constructor<VariantConstructor<Transform2D, float, Size2, float, Vector2>>(sarray("rotation", "scale", "skew", "position"));
 	add_constructor<VariantConstructor<Transform2D, Vector2, Vector2, Vector2>>(sarray("x_axis", "y_axis", "origin"));
 
 	add_constructor<VariantConstructNoArgs<Plane>>(sarray());
@@ -605,13 +124,13 @@ void Variant::_register_variant_constructors() {
 	add_constructor<VariantConstructor<Plane, Vector3, Vector3, Vector3>>(sarray("point1", "point2", "point3"));
 	add_constructor<VariantConstructor<Plane, double, double, double, double>>(sarray("a", "b", "c", "d"));
 
-	add_constructor<VariantConstructNoArgs<Quat>>(sarray());
-	add_constructor<VariantConstructor<Quat, Quat>>(sarray("from"));
-	add_constructor<VariantConstructor<Quat, Basis>>(sarray("from"));
-	add_constructor<VariantConstructor<Quat, Vector3>>(sarray("euler"));
-	add_constructor<VariantConstructor<Quat, Vector3, double>>(sarray("axis", "angle"));
-	add_constructor<VariantConstructor<Quat, Vector3, Vector3>>(sarray("arc_from", "arc_to"));
-	add_constructor<VariantConstructor<Quat, double, double, double, double>>(sarray("x", "y", "z", "w"));
+	add_constructor<VariantConstructNoArgs<Quaternion>>(sarray());
+	add_constructor<VariantConstructor<Quaternion, Quaternion>>(sarray("from"));
+	add_constructor<VariantConstructor<Quaternion, Basis>>(sarray("from"));
+	add_constructor<VariantConstructor<Quaternion, Vector3>>(sarray("euler"));
+	add_constructor<VariantConstructor<Quaternion, Vector3, double>>(sarray("axis", "angle"));
+	add_constructor<VariantConstructor<Quaternion, Vector3, Vector3>>(sarray("arc_from", "arc_to"));
+	add_constructor<VariantConstructor<Quaternion, double, double, double, double>>(sarray("x", "y", "z", "w"));
 
 	add_constructor<VariantConstructNoArgs<::AABB>>(sarray());
 	add_constructor<VariantConstructor<::AABB, ::AABB>>(sarray("from"));
@@ -619,21 +138,23 @@ void Variant::_register_variant_constructors() {
 
 	add_constructor<VariantConstructNoArgs<Basis>>(sarray());
 	add_constructor<VariantConstructor<Basis, Basis>>(sarray("from"));
-	add_constructor<VariantConstructor<Basis, Quat>>(sarray("from"));
+	add_constructor<VariantConstructor<Basis, Quaternion>>(sarray("from"));
 	add_constructor<VariantConstructor<Basis, Vector3>>(sarray("euler"));
 	add_constructor<VariantConstructor<Basis, Vector3, double>>(sarray("axis", "phi"));
 	add_constructor<VariantConstructor<Basis, Vector3, Vector3, Vector3>>(sarray("x_axis", "y_axis", "z_axis"));
 
-	add_constructor<VariantConstructNoArgs<Transform>>(sarray());
-	add_constructor<VariantConstructor<Transform, Transform>>(sarray("from"));
-	add_constructor<VariantConstructor<Transform, Basis, Vector3>>(sarray("basis", "origin"));
-	add_constructor<VariantConstructor<Transform, Vector3, Vector3, Vector3, Vector3>>(sarray("x_axis", "y_axis", "z_axis", "origin"));
+	add_constructor<VariantConstructNoArgs<Transform3D>>(sarray());
+	add_constructor<VariantConstructor<Transform3D, Transform3D>>(sarray("from"));
+	add_constructor<VariantConstructor<Transform3D, Basis, Vector3>>(sarray("basis", "origin"));
+	add_constructor<VariantConstructor<Transform3D, Vector3, Vector3, Vector3, Vector3>>(sarray("x_axis", "y_axis", "z_axis", "origin"));
 
 	add_constructor<VariantConstructNoArgs<Color>>(sarray());
 	add_constructor<VariantConstructor<Color, Color>>(sarray("from"));
 	add_constructor<VariantConstructor<Color, Color, double>>(sarray("from", "alpha"));
 	add_constructor<VariantConstructor<Color, double, double, double>>(sarray("r", "g", "b"));
 	add_constructor<VariantConstructor<Color, double, double, double, double>>(sarray("r", "g", "b", "a"));
+	add_constructor<VariantConstructor<Color, String>>(sarray("code"));
+	add_constructor<VariantConstructor<Color, String, double>>(sarray("code", "alpha"));
 
 	add_constructor<VariantConstructNoArgs<StringName>>(sarray());
 	add_constructor<VariantConstructor<StringName, StringName>>(sarray("from"));
@@ -717,6 +238,7 @@ void Variant::_unregister_variant_constructors() {
 }
 
 void Variant::construct(Variant::Type p_type, Variant &base, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
+	ERR_FAIL_INDEX(p_type, Variant::VARIANT_MAX);
 	uint32_t s = construct_data[p_type].size();
 	for (uint32_t i = 0; i < s; i++) {
 		int argc = construct_data[p_type][i].argument_count;
@@ -779,9 +301,9 @@ String Variant::get_constructor_argument_name(Variant::Type p_type, int p_constr
 
 void VariantInternal::object_assign(Variant *v, const Object *o) {
 	if (o) {
-		if (o->is_reference()) {
-			Reference *reference = const_cast<Reference *>(static_cast<const Reference *>(o));
-			if (!reference->init_ref()) {
+		if (o->is_ref_counted()) {
+			RefCounted *ref_counted = const_cast<RefCounted *>(static_cast<const RefCounted *>(o));
+			if (!ref_counted->init_ref()) {
 				v->_get_obj().obj = nullptr;
 				v->_get_obj().id = ObjectID();
 				return;

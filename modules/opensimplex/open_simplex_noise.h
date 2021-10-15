@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,27 +32,27 @@
 #define OPEN_SIMPLEX_NOISE_H
 
 #include "core/io/image.h"
-#include "core/object/reference.h"
+#include "core/object/ref_counted.h"
 #include "scene/resources/texture.h"
 
 #include "thirdparty/misc/open-simplex-noise.h"
-
-// The maximum number of octaves allowed. Note that these are statically allocated.
-// Higher values become exponentially slower, so this shouldn't be set too high
-// to avoid freezing the editor for long periods of time.
-#define MAX_OCTAVES 9
 
 class OpenSimplexNoise : public Resource {
 	GDCLASS(OpenSimplexNoise, Resource);
 	OBJ_SAVE_TYPE(OpenSimplexNoise);
 
+	// The maximum number of octaves allowed. Note that these are statically allocated.
+	// Higher values become exponentially slower, so this shouldn't be set too high
+	// to avoid freezing the editor for long periods of time.
+	static const int MAX_OCTAVES = 9;
+
 	osn_context contexts[MAX_OCTAVES];
 
-	int seed;
-	float persistence; // Controls details, value in [0,1]. Higher increases grain, lower increases smoothness.
-	int octaves; // Number of noise layers
-	float period; // Distance above which we start to see similarities. The higher, the longer "hills" will be on a terrain.
-	float lacunarity; // Controls period change across octaves. 2 is usually a good value to address all detail levels.
+	int seed = 0;
+	float persistence = 0.5; // Controls details, value in [0,1]. Higher increases grain, lower increases smoothness.
+	int octaves = 3; // Number of noise layers
+	float period = 64.0; // Distance above which we start to see similarities. The higher, the longer "hills" will be on a terrain.
+	float lacunarity = 2.0; // Controls period change across octaves. 2 is usually a good value to address all detail levels.
 
 public:
 	OpenSimplexNoise();
@@ -75,7 +75,7 @@ public:
 	void set_lacunarity(float p_lacunarity);
 	float get_lacunarity() const { return lacunarity; }
 
-	Ref<Image> get_image(int p_width, int p_height) const;
+	Ref<Image> get_image(int p_width, int p_height, const Vector2 &p_noise_offset = Vector2()) const;
 	Ref<Image> get_seamless_image(int p_size) const;
 
 	float get_noise_1d(float x) const;

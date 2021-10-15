@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -105,12 +105,13 @@ class AnimationPlayerEditor : public VBoxContainer {
 	Label *name_title;
 	UndoRedo *undo_redo;
 	Ref<Texture2D> autoplay_icon;
+	Ref<Texture2D> reset_icon;
+	Ref<ImageTexture> autoplay_reset_icon;
 	bool last_active;
 	float timeline_position;
 
 	EditorFileDialog *file;
 	ConfirmationDialog *delete_dialog;
-	int current_option;
 
 	struct BlendEditor {
 		AcceptDialog *dialog = nullptr;
@@ -127,6 +128,7 @@ class AnimationPlayerEditor : public VBoxContainer {
 	bool updating_blends;
 
 	AnimationTrackEditor *track_editor;
+	static AnimationPlayerEditor *singleton;
 
 	// Onion skinning.
 	struct {
@@ -183,9 +185,10 @@ class AnimationPlayerEditor : public VBoxContainer {
 	void _animation_duplicate();
 	void _animation_resource_edit();
 	void _scale_changed(const String &p_scale);
-	void _dialog_action(String p_file);
+	void _save_animation(String p_file);
+	void _load_animations(Vector<String> p_files);
 	void _seek_frame_changed(const String &p_frame);
-	void _seek_value_changed(float p_value, bool p_set = false);
+	void _seek_value_changed(float p_value, bool p_set = false, bool p_timeline_only = false);
 	void _blend_editor_next_changed(const int p_idx);
 
 	void _list_changed();
@@ -195,10 +198,10 @@ class AnimationPlayerEditor : public VBoxContainer {
 
 	void _animation_player_changed(Object *p_pl);
 
-	void _animation_key_editor_seek(float p_pos, bool p_drag);
+	void _animation_key_editor_seek(float p_pos, bool p_drag, bool p_timeline_only = false);
 	void _animation_key_editor_anim_len_changed(float p_len);
 
-	void _unhandled_key_input(const Ref<InputEvent> &p_ev);
+	virtual void unhandled_key_input(const Ref<InputEvent> &p_ev) override;
 	void _animation_tool_menu(int p_option);
 	void _onion_skinning_menu(int p_option);
 
@@ -224,7 +227,8 @@ protected:
 
 public:
 	AnimationPlayer *get_player() const;
-	static AnimationPlayerEditor *singleton;
+
+	static AnimationPlayerEditor *get_singleton() { return singleton; }
 
 	bool is_pinned() const { return pin->is_pressed(); }
 	void unpin() { pin->set_pressed(false); }
@@ -236,7 +240,7 @@ public:
 
 	void set_undo_redo(UndoRedo *p_undo_redo) { undo_redo = p_undo_redo; }
 	void edit(AnimationPlayer *p_player);
-	void forward_canvas_force_draw_over_viewport(Control *p_overlay);
+	void forward_force_draw_over_viewport(Control *p_overlay);
 
 	AnimationPlayerEditor(EditorNode *p_editor, AnimationPlayerEditorPlugin *p_plugin);
 };
@@ -260,7 +264,8 @@ public:
 	virtual bool handles(Object *p_object) const override;
 	virtual void make_visible(bool p_visible) override;
 
-	virtual void forward_canvas_force_draw_over_viewport(Control *p_overlay) override { anim_editor->forward_canvas_force_draw_over_viewport(p_overlay); }
+	virtual void forward_canvas_force_draw_over_viewport(Control *p_overlay) override { anim_editor->forward_force_draw_over_viewport(p_overlay); }
+	virtual void forward_spatial_force_draw_over_viewport(Control *p_overlay) override { anim_editor->forward_force_draw_over_viewport(p_overlay); }
 
 	AnimationPlayerEditorPlugin(EditorNode *p_node);
 	~AnimationPlayerEditorPlugin();

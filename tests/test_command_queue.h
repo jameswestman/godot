@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -31,14 +31,14 @@
 #ifndef TEST_COMMAND_QUEUE_H
 #define TEST_COMMAND_QUEUE_H
 
-#include "test_command_queue.h"
-
 #include "core/config/project_settings.h"
+#include "core/math/random_number_generator.h"
 #include "core/os/mutex.h"
 #include "core/os/os.h"
 #include "core/os/semaphore.h"
 #include "core/os/thread.h"
 #include "core/templates/command_queue_mt.h"
+#include "test_macros.h"
 
 #if !defined(NO_THREADS)
 
@@ -122,25 +122,25 @@ public:
 	int message_count_to_read = 0;
 	bool exit_threads = false;
 
-	Thread *reader_thread = nullptr;
-	Thread *writer_thread = nullptr;
+	Thread reader_thread;
+	Thread writer_thread;
 
 	int func1_count = 0;
 
-	void func1(Transform t) {
+	void func1(Transform3D t) {
 		func1_count++;
 	}
-	void func2(Transform t, float f) {
+	void func2(Transform3D t, float f) {
 		func1_count++;
 	}
-	void func3(Transform t1, Transform t2, Transform t3, Transform t4, Transform t5, Transform t6) {
+	void func3(Transform3D t1, Transform3D t2, Transform3D t3, Transform3D t4, Transform3D t5, Transform3D t6) {
 		func1_count++;
 	}
-	Transform func1r(Transform t) {
+	Transform3D func1r(Transform3D t) {
 		func1_count++;
 		return t;
 	}
-	Transform func2r(Transform t, float f) {
+	Transform3D func2r(Transform3D t, float f) {
 		func1_count++;
 		return t;
 	}
@@ -156,7 +156,7 @@ public:
 				command_queue.flush_all();
 			}
 			for (int i = 0; i < message_count_to_read; i++) {
-				command_queue.wait_and_flush_one();
+				command_queue.wait_and_flush();
 			}
 			message_count_to_read = 0;
 
@@ -175,8 +175,8 @@ public:
 		during_writing = false;
 		writer_threadwork.thread_wait_for_work();
 		while (!exit_threads) {
-			Transform tr;
-			Transform otr;
+			Transform3D tr;
+			Transform3D otr;
 			float f = 1;
 			during_writing = true;
 			for (int i = 0; i < message_types_to_write.size(); i++) {
@@ -221,20 +221,16 @@ public:
 	}
 
 	void init_threads() {
-		reader_thread = Thread::create(&SharedThreadState::static_reader_thread_loop, this);
-		writer_thread = Thread::create(&SharedThreadState::static_writer_thread_loop, this);
+		reader_thread.start(&SharedThreadState::static_reader_thread_loop, this);
+		writer_thread.start(&SharedThreadState::static_writer_thread_loop, this);
 	}
 	void destroy_threads() {
 		exit_threads = true;
 		reader_threadwork.main_start_work();
 		writer_threadwork.main_start_work();
 
-		Thread::wait_to_finish(reader_thread);
-		memdelete(reader_thread);
-		reader_thread = nullptr;
-		Thread::wait_to_finish(writer_thread);
-		memdelete(writer_thread);
-		writer_thread = nullptr;
+		reader_thread.wait_to_finish();
+		writer_thread.wait_to_finish();
 	}
 };
 
@@ -275,50 +271,6 @@ TEST_CASE("[CommandQueue] Test Queue Basics") {
 	sts.destroy_threads();
 
 	CHECK_MESSAGE(sts.func1_count == 2,
-			"Reader should have read no additional messages after join");
-	ProjectSettings::get_singleton()->set_setting(COMMAND_QUEUE_SETTING,
-			ProjectSettings::get_singleton()->property_get_revert(COMMAND_QUEUE_SETTING));
-}
-
-TEST_CASE("[CommandQueue] Test Waiting at Queue Full") {
-	const char *COMMAND_QUEUE_SETTING = "memory/limits/command_queue/multithreading_queue_size_kb";
-	ProjectSettings::get_singleton()->set_setting(COMMAND_QUEUE_SETTING, 1);
-	SharedThreadState sts;
-	sts.init_threads();
-
-	int msgs_to_add = 24; // a queue of size 1kB fundamentally cannot fit 24 matrices.
-	for (int i = 0; i < msgs_to_add; i++) {
-		sts.add_msg_to_write(SharedThreadState::TEST_MSG_FUNC1_TRANSFORM);
-	}
-	sts.writer_threadwork.main_start_work();
-	// If we call main_wait_for_done, we will deadlock. So instead...
-	sts.message_count_to_read = 1;
-	sts.reader_threadwork.main_start_work();
-	sts.reader_threadwork.main_wait_for_done();
-	CHECK_MESSAGE(sts.func1_count == 1,
-			"Reader should have read one message");
-	CHECK_MESSAGE(sts.during_writing,
-			"Writer thread should still be blocked on writing.");
-	sts.message_count_to_read = msgs_to_add - 3;
-	sts.reader_threadwork.main_start_work();
-	sts.reader_threadwork.main_wait_for_done();
-	CHECK_MESSAGE(sts.func1_count >= msgs_to_add - 3,
-			"Reader should have read most messages");
-	sts.writer_threadwork.main_wait_for_done();
-	CHECK_MESSAGE(sts.during_writing == false,
-			"Writer thread should no longer be blocked on writing.");
-	sts.message_count_to_read = 2;
-	sts.reader_threadwork.main_start_work();
-	sts.reader_threadwork.main_wait_for_done();
-	sts.message_count_to_read = -1;
-	sts.reader_threadwork.main_start_work();
-	sts.reader_threadwork.main_wait_for_done();
-	CHECK_MESSAGE(sts.func1_count == msgs_to_add,
-			"Reader should have read all messages");
-
-	sts.destroy_threads();
-
-	CHECK_MESSAGE(sts.func1_count == msgs_to_add,
 			"Reader should have read no additional messages after join");
 	ProjectSettings::get_singleton()->set_setting(COMMAND_QUEUE_SETTING,
 			ProjectSettings::get_singleton()->property_get_revert(COMMAND_QUEUE_SETTING));

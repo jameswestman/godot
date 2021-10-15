@@ -13,7 +13,7 @@ def get_name():
 
 
 def can_build():
-    return "ANDROID_NDK_ROOT" in os.environ
+    return ("ANDROID_SDK_ROOT" in os.environ) or ("ANDROID_HOME" in os.environ)
 
 
 def get_platform(platform):
@@ -24,11 +24,30 @@ def get_opts():
     from SCons.Variables import BoolVariable, EnumVariable
 
     return [
-        ("ANDROID_NDK_ROOT", "Path to the Android NDK", os.environ.get("ANDROID_NDK_ROOT", 0)),
+        ("ANDROID_NDK_ROOT", "Path to the Android NDK", get_android_ndk_root()),
+        ("ANDROID_SDK_ROOT", "Path to the Android SDK", get_android_sdk_root()),
         ("ndk_platform", 'Target platform (android-<api>, e.g. "android-24")', "android-24"),
-        EnumVariable("android_arch", "Target architecture", "armv7", ("armv7", "arm64v8", "x86", "x86_64")),
-        BoolVariable("android_neon", "Enable NEON support (armv7 only)", True),
+        EnumVariable("android_arch", "Target architecture", "arm64v8", ("armv7", "arm64v8", "x86", "x86_64")),
     ]
+
+
+# Return the ANDROID_SDK_ROOT environment variable.
+# While ANDROID_HOME has been deprecated, it's used as a fallback for backward
+# compatibility purposes.
+def get_android_sdk_root():
+    if "ANDROID_SDK_ROOT" in os.environ:
+        return os.environ.get("ANDROID_SDK_ROOT", 0)
+    else:
+        return os.environ.get("ANDROID_HOME", 0)
+
+
+# Return the ANDROID_NDK_ROOT environment variable.
+# We generate one for this build using the ANDROID_SDK_ROOT env
+# variable and the project ndk version.
+# If the env variable is already defined, we override it with
+# our own to match what the project expects.
+def get_android_ndk_root():
+    return get_android_sdk_root() + "/ndk/" + get_project_ndk_version()
 
 
 def get_flags():
@@ -47,9 +66,33 @@ def create(env):
     return env.Clone(tools=tools)
 
 
+# Check if ANDROID_NDK_ROOT is valid.
+# If not, install the ndk using ANDROID_SDK_ROOT and sdkmanager.
+def install_ndk_if_needed(env):
+    print("Checking for Android NDK...")
+    env_ndk_version = get_env_ndk_version(env["ANDROID_NDK_ROOT"])
+    if env_ndk_version is None:
+        # Reinstall the ndk and update ANDROID_NDK_ROOT.
+        print("Installing Android NDK...")
+        if env["ANDROID_SDK_ROOT"] is None:
+            raise Exception("Invalid ANDROID_SDK_ROOT environment variable.")
+
+        import subprocess
+
+        extension = ".bat" if os.name == "nt" else ""
+        sdkmanager_path = env["ANDROID_SDK_ROOT"] + "/cmdline-tools/latest/bin/sdkmanager" + extension
+        ndk_download_args = "ndk;" + get_project_ndk_version()
+        subprocess.check_call([sdkmanager_path, ndk_download_args])
+
+        env["ANDROID_NDK_ROOT"] = env["ANDROID_SDK_ROOT"] + "/ndk/" + get_project_ndk_version()
+        print("ANDROID_NDK_ROOT: " + env["ANDROID_NDK_ROOT"])
+
+
 def configure(env):
+    install_ndk_if_needed(env)
+
     # Workaround for MinGW. See:
-    # http://www.scons.org/wiki/LongCmdLinesOnWin32
+    # https://www.scons.org/wiki/LongCmdLinesOnWin32
     if os.name == "nt":
 
         import subprocess
@@ -99,10 +142,7 @@ def configure(env):
     if env["android_arch"] not in ["armv7", "arm64v8", "x86", "x86_64"]:
         env["android_arch"] = "armv7"
 
-    neon_text = ""
-    if env["android_arch"] == "armv7" and env["android_neon"]:
-        neon_text = " (with NEON)"
-    print("Building for Android, platform " + env["ndk_platform"] + " (" + env["android_arch"] + ")" + neon_text)
+    print("Building for Android, platform " + env["ndk_platform"] + " (" + env["android_arch"] + ")")
 
     can_vectorize = True
     if env["android_arch"] == "x86":
@@ -130,10 +170,7 @@ def configure(env):
         target_subpath = "arm-linux-androideabi-4.9"
         abi_subpath = "arm-linux-androideabi"
         arch_subpath = "armeabi-v7a"
-        if env["android_neon"]:
-            env.extra_suffix = ".armv7.neon" + env.extra_suffix
-        else:
-            env.extra_suffix = ".armv7" + env.extra_suffix
+        env.extra_suffix = ".armv7" + env.extra_suffix
     elif env["android_arch"] == "arm64v8":
         if get_platform(env["ndk_platform"]) < 21:
             print(
@@ -153,12 +190,11 @@ def configure(env):
         if env["optimize"] == "speed":  # optimize for speed (default)
             env.Append(LINKFLAGS=["-O2"])
             env.Append(CCFLAGS=["-O2", "-fomit-frame-pointer"])
-            env.Append(CPPDEFINES=["NDEBUG"])
-        else:  # optimize for size
+        elif env["optimize"] == "size":  # optimize for size
             env.Append(CCFLAGS=["-Os"])
-            env.Append(CPPDEFINES=["NDEBUG"])
             env.Append(LINKFLAGS=["-Os"])
 
+        env.Append(CPPDEFINES=["NDEBUG"])
         if can_vectorize:
             env.Append(CCFLAGS=["-ftree-vectorize"])
         if env["target"] == "release_debug":
@@ -167,6 +203,7 @@ def configure(env):
         env.Append(LINKFLAGS=["-O0"])
         env.Append(CCFLAGS=["-O0", "-g", "-fno-limit-debug-info"])
         env.Append(CPPDEFINES=["_DEBUG", "DEBUG_ENABLED"])
+        env.Append(CPPDEFINES=["DEV_ENABLED"])
         env.Append(CPPFLAGS=["-UNDEBUG"])
 
     # Compiler configuration
@@ -207,7 +244,7 @@ def configure(env):
     env["RANLIB"] = tools_path + "/ranlib"
     env["AS"] = tools_path + "/as"
 
-    common_opts = ["-fno-integrated-as", "-gcc-toolchain", gcc_toolchain_path]
+    common_opts = ["-gcc-toolchain", gcc_toolchain_path]
 
     # Compile flags
 
@@ -215,8 +252,10 @@ def configure(env):
     env.Append(CPPFLAGS=["-isystem", env["ANDROID_NDK_ROOT"] + "/sources/cxx-stl/llvm-libc++abi/include"])
 
     # Disable exceptions and rtti on non-tools (template) builds
-    if env["tools"] or env["builtin_icu"]:
+    if env["tools"]:
         env.Append(CXXFLAGS=["-frtti"])
+    elif env["builtin_icu"]:
+        env.Append(CXXFLAGS=["-frtti", "-fno-exceptions"])
     else:
         env.Append(CXXFLAGS=["-fno-rtti", "-fno-exceptions"])
         # Don't use dynamic_cast, necessary with no-rtti.
@@ -240,7 +279,9 @@ def configure(env):
     )
     env.Append(CPPDEFINES=["NO_STATVFS", "GLES_ENABLED"])
 
-    env["neon_enabled"] = False
+    if get_platform(env["ndk_platform"]) >= 24:
+        env.Append(CPPDEFINES=[("_FILE_OFFSET_BITS", 64)])
+
     if env["android_arch"] == "x86":
         target_opts = ["-target", "i686-none-linux-android"]
         # The NDK adds this if targeting API < 21, so we can drop it when Godot targets it at least
@@ -253,12 +294,9 @@ def configure(env):
         target_opts = ["-target", "armv7-none-linux-androideabi"]
         env.Append(CCFLAGS="-march=armv7-a -mfloat-abi=softfp".split())
         env.Append(CPPDEFINES=["__ARM_ARCH_7__", "__ARM_ARCH_7A__"])
-        if env["android_neon"]:
-            env["neon_enabled"] = True
-            env.Append(CCFLAGS=["-mfpu=neon"])
-            env.Append(CPPDEFINES=["__ARM_NEON__"])
-        else:
-            env.Append(CCFLAGS=["-mfpu=vfpv3-d16"])
+        # Enable ARM NEON instructions to compile more optimized code.
+        env.Append(CCFLAGS=["-mfpu=neon"])
+        env.Append(CPPDEFINES=["__ARM_NEON__"])
 
     elif env["android_arch"] == "arm64v8":
         target_opts = ["-target", "aarch64-none-linux-android"]
@@ -270,7 +308,7 @@ def configure(env):
 
     # Link flags
 
-    ndk_version = get_ndk_version(env["ANDROID_NDK_ROOT"])
+    ndk_version = get_env_ndk_version(env["ANDROID_NDK_ROOT"])
     if ndk_version != None and LooseVersion(ndk_version) >= LooseVersion("17.1.4828580"):
         env.Append(LINKFLAGS=["-Wl,--exclude-libs,libgcc.a", "-Wl,--exclude-libs,libatomic.a", "-nostdlib++"])
     else:
@@ -319,12 +357,23 @@ def configure(env):
     )
 
     env.Prepend(CPPPATH=["#platform/android"])
-    env.Append(CPPDEFINES=["ANDROID_ENABLED", "UNIX_ENABLED", "VULKAN_ENABLED", "NO_FCNTL"])
-    env.Append(LIBS=["OpenSLES", "EGL", "GLESv2", "vulkan", "android", "log", "z", "dl"])
+    env.Append(CPPDEFINES=["ANDROID_ENABLED", "UNIX_ENABLED", "NO_FCNTL"])
+    env.Append(LIBS=["OpenSLES", "EGL", "GLESv2", "android", "log", "z", "dl"])
+
+    if env["vulkan"]:
+        env.Append(CPPDEFINES=["VULKAN_ENABLED"])
+        if not env["use_volk"]:
+            env.Append(LIBS=["vulkan"])
+
+
+# Return the project NDK version.
+# This is kept in sync with the value in 'platform/android/java/app/config.gradle'.
+def get_project_ndk_version():
+    return "21.4.7075529"
 
 
 # Return NDK version string in source.properties (adapted from the Chromium project).
-def get_ndk_version(path):
+def get_env_ndk_version(path):
     if path is None:
         return None
     prop_file_path = os.path.join(path, "source.properties")

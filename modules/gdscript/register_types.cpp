@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -30,14 +30,15 @@
 
 #include "register_types.h"
 
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/io/file_access_encrypted.h"
 #include "core/io/resource_loader.h"
-#include "core/os/dir_access.h"
-#include "core/os/file_access.h"
 #include "gdscript.h"
 #include "gdscript_analyzer.h"
 #include "gdscript_cache.h"
 #include "gdscript_tokenizer.h"
+#include "gdscript_utility_functions.h"
 
 #ifdef TESTS_ENABLED
 #include "tests/test_gdscript.h"
@@ -84,19 +85,19 @@ public:
 			return;
 		}
 
-		// TODO: Readd compiled GDScript on export.
+		// TODO: Re-add compiled GDScript on export.
 		return;
 	}
 };
 
 static void _editor_init() {
 	Ref<EditorExportGDScript> gd_export;
-	gd_export.instance();
+	gd_export.instantiate();
 	EditorExport::get_singleton()->add_export_plugin(gd_export);
 
 #ifdef TOOLS_ENABLED
 	Ref<GDScriptSyntaxHighlighter> gdscript_syntax_highlighter;
-	gdscript_syntax_highlighter.instance();
+	gdscript_syntax_highlighter.instantiate();
 	ScriptEditor::get_singleton()->register_syntax_highlighter(gdscript_syntax_highlighter);
 #endif
 
@@ -111,15 +112,15 @@ static void _editor_init() {
 #endif // TOOLS_ENABLED
 
 void register_gdscript_types() {
-	ClassDB::register_class<GDScript>();
+	GDREGISTER_CLASS(GDScript);
 
 	script_language_gd = memnew(GDScriptLanguage);
 	ScriptServer::register_language(script_language_gd);
 
-	resource_loader_gd.instance();
+	resource_loader_gd.instantiate();
 	ResourceLoader::add_resource_format_loader(resource_loader_gd);
 
-	resource_saver_gd.instance();
+	resource_saver_gd.instantiate();
 	ResourceSaver::add_resource_format_saver(resource_saver_gd);
 
 	gdscript_cache = memnew(GDScriptCache);
@@ -127,9 +128,11 @@ void register_gdscript_types() {
 #ifdef TOOLS_ENABLED
 	EditorNode::add_init_callback(_editor_init);
 
-	gdscript_translation_parser_plugin.instance();
+	gdscript_translation_parser_plugin.instantiate();
 	EditorTranslationParser::get_singleton()->add_parser(gdscript_translation_parser_plugin, EditorTranslationParser::STANDARD);
 #endif // TOOLS_ENABLED
+
+	GDScriptUtilityFunctions::register_functions();
 }
 
 void unregister_gdscript_types() {
@@ -155,24 +158,24 @@ void unregister_gdscript_types() {
 #endif // TOOLS_ENABLED
 
 	GDScriptParser::cleanup();
-	GDScriptAnalyzer::cleanup();
+	GDScriptUtilityFunctions::unregister_functions();
 }
 
 #ifdef TESTS_ENABLED
 void test_tokenizer() {
-	TestGDScript::test(TestGDScript::TestType::TEST_TOKENIZER);
+	GDScriptTests::test(GDScriptTests::TestType::TEST_TOKENIZER);
 }
 
 void test_parser() {
-	TestGDScript::test(TestGDScript::TestType::TEST_PARSER);
+	GDScriptTests::test(GDScriptTests::TestType::TEST_PARSER);
 }
 
 void test_compiler() {
-	TestGDScript::test(TestGDScript::TestType::TEST_COMPILER);
+	GDScriptTests::test(GDScriptTests::TestType::TEST_COMPILER);
 }
 
 void test_bytecode() {
-	TestGDScript::test(TestGDScript::TestType::TEST_BYTECODE);
+	GDScriptTests::test(GDScriptTests::TestType::TEST_BYTECODE);
 }
 
 REGISTER_TEST_COMMAND("gdscript-tokenizer", &test_tokenizer);

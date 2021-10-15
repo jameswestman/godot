@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,11 +32,13 @@
 
 #include "core/config/project_settings.h"
 #include "core/os/os.h"
+#include "core/version.h"
+#include "core/version_hash.gen.h"
 #include "main/main.h"
 
 #ifdef CRASH_HANDLER_EXCEPTION
 
-// Backtrace code code based on: https://stackoverflow.com/questions/6205981/windows-c-stack-trace-from-a-running-app
+// Backtrace code based on: https://stackoverflow.com/questions/6205981/windows-c-stack-trace-from-a-running-app
 
 #include <algorithm>
 #include <iterator>
@@ -127,6 +129,7 @@ DWORD CrashHandlerException(EXCEPTION_POINTERS *ep) {
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 
+	fprintf(stderr, "\n================================================================\n");
 	fprintf(stderr, "%s: Program crashed\n", __FUNCTION__);
 
 	if (OS::get_singleton()->get_main_loop())
@@ -175,6 +178,12 @@ DWORD CrashHandlerException(EXCEPTION_POINTERS *ep) {
 		msg = proj_settings->get("debug/settings/crash_handler/message");
 	}
 
+	// Print the engine version just before, so that people are reminded to include the version in backtrace reports.
+	if (String(VERSION_HASH).length() != 0) {
+		fprintf(stderr, "Engine version: " VERSION_FULL_NAME " (" VERSION_HASH ")\n");
+	} else {
+		fprintf(stderr, "Engine version: " VERSION_FULL_NAME "\n");
+	}
 	fprintf(stderr, "Dumping the backtrace. %s\n", msg.utf8().get_data());
 
 	int n = 0;
@@ -200,6 +209,7 @@ DWORD CrashHandlerException(EXCEPTION_POINTERS *ep) {
 	} while (frame.AddrReturn.Offset != 0 && n < 256);
 
 	fprintf(stderr, "-- END OF BACKTRACE --\n");
+	fprintf(stderr, "================================================================\n");
 
 	SymCleanup(process);
 

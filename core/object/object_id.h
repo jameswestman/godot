@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -42,7 +42,7 @@ class ObjectID {
 	uint64_t id = 0;
 
 public:
-	_ALWAYS_INLINE_ bool is_reference() const { return (id & (uint64_t(1) << 63)) != 0; }
+	_ALWAYS_INLINE_ bool is_ref_counted() const { return (id & (uint64_t(1) << 63)) != 0; }
 	_ALWAYS_INLINE_ bool is_valid() const { return id != 0; }
 	_ALWAYS_INLINE_ bool is_null() const { return id == 0; }
 	_ALWAYS_INLINE_ operator uint64_t() const { return id; }

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,7 +32,6 @@
 #define OA_HASH_MAP_H
 
 #include "core/math/math_funcs.h"
-#include "core/os/copymem.h"
 #include "core/os/memory.h"
 #include "core/templates/hashfuncs.h"
 
@@ -190,7 +189,7 @@ public:
 	_FORCE_INLINE_ uint32_t get_capacity() const { return capacity; }
 	_FORCE_INLINE_ uint32_t get_num_elements() const { return num_elements; }
 
-	bool empty() const {
+	bool is_empty() const {
 		return num_elements == 0;
 	}
 
@@ -232,7 +231,7 @@ public:
 	/**
 	 * returns true if the value was found, false otherwise.
 	 *
-	 * if r_data is not nullptr  then the value will be written to the object
+	 * if r_data is not nullptr then the value will be written to the object
 	 * it points to.
 	 */
 	bool lookup(const TKey &p_key, TValue &r_data) const {
@@ -250,7 +249,7 @@ public:
 	/**
 	 * returns true if the value was found, false otherwise.
 	 *
-	 * if r_data is not nullptr  then the value will be written to the object
+	 * if r_data is not nullptr then the value will be written to the object
 	 * it points to.
 	 */
 	TValue *lookup_ptr(const TKey &p_key) const {

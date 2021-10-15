@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -46,23 +46,14 @@ public:
 
 private:
 	struct Slot {
-		bool enable_left;
-		int type_left;
-		Color color_left;
-		bool enable_right;
-		int type_right;
-		Color color_right;
+		bool enable_left = false;
+		int type_left = 0;
+		Color color_left = Color(1, 1, 1, 1);
+		bool enable_right = false;
+		int type_right = 0;
+		Color color_right = Color(1, 1, 1, 1);
 		Ref<Texture2D> custom_slot_left;
 		Ref<Texture2D> custom_slot_right;
-
-		Slot() {
-			enable_left = false;
-			type_left = 0;
-			color_left = Color(1, 1, 1, 1);
-			enable_right = false;
-			type_right = 0;
-			color_right = Color(1, 1, 1, 1);
-		}
 	};
 
 	String title;
@@ -72,12 +63,12 @@ private:
 	String language;
 	TextDirection text_direction = TEXT_DIRECTION_AUTO;
 
-	bool show_close;
-	Vector2 offset;
-	bool comment;
-	bool resizable;
+	bool show_close = false;
+	Vector2 position_offset;
+	bool comment = false;
+	bool resizable = false;
 
-	bool resizing;
+	bool resizing = false;
 	Vector2 resizing_from;
 	Vector2 resizing_from_size;
 
@@ -87,7 +78,7 @@ private:
 
 	struct ConnCache {
 		Vector2 pos;
-		int type;
+		int type = 0;
 		Color color;
 	};
 
@@ -96,19 +87,24 @@ private:
 
 	Map<int, Slot> slot_info;
 
-	bool connpos_dirty;
+	bool connpos_dirty = true;
 
 	void _connpos_update();
 	void _resort();
 	void _shape();
 
 	Vector2 drag_from;
-	bool selected;
+	bool selected = false;
 
-	Overlay overlay;
+	Overlay overlay = OVERLAY_DISABLED;
+
+#ifdef TOOLS_ENABLED
+	void _edit_set_position(const Point2 &p_position) override;
+	void _validate_property(PropertyInfo &property) const override;
+#endif
 
 protected:
-	void _gui_input(const Ref<InputEvent> &p_ev);
+	virtual void gui_input(const Ref<InputEvent> &p_ev) override;
 	void _notification(int p_what);
 	static void _bind_methods();
 
@@ -122,11 +118,23 @@ public:
 	void set_slot(int p_idx, bool p_enable_left, int p_type_left, const Color &p_color_left, bool p_enable_right, int p_type_right, const Color &p_color_right, const Ref<Texture2D> &p_custom_left = Ref<Texture2D>(), const Ref<Texture2D> &p_custom_right = Ref<Texture2D>());
 	void clear_slot(int p_idx);
 	void clear_all_slots();
+
 	bool is_slot_enabled_left(int p_idx) const;
+	void set_slot_enabled_left(int p_idx, bool p_enable_left);
+
+	void set_slot_type_left(int p_idx, int p_type_left);
 	int get_slot_type_left(int p_idx) const;
+
+	void set_slot_color_left(int p_idx, const Color &p_color_left);
 	Color get_slot_color_left(int p_idx) const;
+
 	bool is_slot_enabled_right(int p_idx) const;
+	void set_slot_enabled_right(int p_idx, bool p_enable_right);
+
+	void set_slot_type_right(int p_idx, int p_type_right);
 	int get_slot_type_right(int p_idx) const;
+
+	void set_slot_color_right(int p_idx, const Color &p_color_right);
 	Color get_slot_color_right(int p_idx) const;
 
 	void set_title(const String &p_title);
@@ -142,8 +150,8 @@ public:
 	void set_language(const String &p_language);
 	String get_language() const;
 
-	void set_offset(const Vector2 &p_offset);
-	Vector2 get_offset() const;
+	void set_position_offset(const Vector2 &p_offset);
+	Vector2 get_position_offset() const;
 
 	void set_selected(bool p_selected);
 	bool is_selected();

@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -32,20 +32,20 @@
 
 #include "editor/debugger/script_editor_debugger.h"
 
-void EditorDebuggerPlugin::_breaked(bool p_really_did, bool p_can_debug) {
+void EditorDebuggerPlugin::_breaked(bool p_really_did, bool p_can_debug, String p_message, bool p_has_stackdump) {
 	if (p_really_did) {
-		emit_signal("breaked", p_can_debug);
+		emit_signal(SNAME("breaked"), p_can_debug);
 	} else {
-		emit_signal("continued");
+		emit_signal(SNAME("continued"));
 	}
 }
 
 void EditorDebuggerPlugin::_started() {
-	emit_signal("started");
+	emit_signal(SNAME("started"));
 }
 
 void EditorDebuggerPlugin::_stopped() {
-	emit_signal("stopped");
+	emit_signal(SNAME("stopped"));
 }
 
 void EditorDebuggerPlugin::_bind_methods() {

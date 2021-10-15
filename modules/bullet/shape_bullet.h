@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2020 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2020 Godot Engine contributors (cf. AUTHORS.md).   */
+/* Copyright (c) 2007-2021 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2021 Godot Engine contributors (cf. AUTHORS.md).   */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -81,7 +81,7 @@ public:
 
 public:
 	static class btEmptyShape *create_shape_empty();
-	static class btStaticPlaneShape *create_shape_plane(const btVector3 &planeNormal, btScalar planeConstant);
+	static class btStaticPlaneShape *create_shape_world_boundary(const btVector3 &planeNormal, btScalar planeConstant);
 	static class btSphereShape *create_shape_sphere(btScalar radius);
 	static class btBoxShape *create_shape_box(const btVector3 &boxHalfExtents);
 	static class btCapsuleShape *create_shape_capsule(btScalar radius, btScalar height);
@@ -89,15 +89,15 @@ public:
 	/// IMPORTANT: Remember to delete the shape interface by calling: delete my_shape->getMeshInterface();
 	static class btConvexPointCloudShape *create_shape_convex(btAlignedObjectArray<btVector3> &p_vertices, const btVector3 &p_local_scaling = btVector3(1, 1, 1));
 	static class btScaledBvhTriangleMeshShape *create_shape_concave(btBvhTriangleMeshShape *p_mesh_shape, const btVector3 &p_local_scaling = btVector3(1, 1, 1));
-	static class btHeightfieldTerrainShape *create_shape_height_field(Vector<real_t> &p_heights, int p_width, int p_depth, real_t p_min_height, real_t p_max_height);
+	static class btHeightfieldTerrainShape *create_shape_height_field(Vector<float> &p_heights, int p_width, int p_depth, real_t p_min_height, real_t p_max_height);
 	static class btRayShape *create_shape_ray(real_t p_length, bool p_slips_on_slope);
 };
 
-class PlaneShapeBullet : public ShapeBullet {
+class WorldBoundaryShapeBullet : public ShapeBullet {
 	Plane plane;
 
 public:
-	PlaneShapeBullet();
+	WorldBoundaryShapeBullet();
 
 	virtual void set_data(const Variant &p_data);
 	virtual Variant get_data() const;
@@ -212,11 +212,11 @@ private:
 
 class HeightMapShapeBullet : public ShapeBullet {
 public:
-	Vector<real_t> heights;
-	int width;
-	int depth;
-	real_t min_height;
-	real_t max_height;
+	Vector<float> heights;
+	int width = 0;
+	int depth = 0;
+	real_t min_height = 0.0;
+	real_t max_height = 0.0;
 
 	HeightMapShapeBullet();
 
@@ -226,12 +226,12 @@ public:
 	virtual btCollisionShape *create_bt_shape(const btVector3 &p_implicit_scale, real_t p_extra_edge = 0);
 
 private:
-	void setup(Vector<real_t> &p_heights, int p_width, int p_depth, real_t p_min_height, real_t p_max_height);
+	void setup(Vector<float> &p_heights, int p_width, int p_depth, real_t p_min_height, real_t p_max_height);
 };
 
 class RayShapeBullet : public ShapeBullet {
 public:
-	real_t length = 1;
+	real_t length = 1.0;
 	bool slips_on_slope = false;
 
 	RayShapeBullet();

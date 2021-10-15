@@ -46,7 +46,7 @@
  * TODO Document more.
  *
  * If iterator implementation implements operator!=, then can be
- * used in range-based for loop.  That comes free if the iterator
+ * used in range-based for loop.  That already happens if the iterator
  * is random-access.  Otherwise, the range-based for loop incurs
  * one traversal to find end(), which can be avoided if written
  * as a while-style for loop, or if iterator implements a faster
@@ -922,7 +922,7 @@ HB_FUNCOBJ (hb_none);
 template <typename C, typename V,
 	  hb_requires (hb_is_iterable (C))>
 inline void
-hb_fill (C& c, const V &v)
+hb_fill (C&& c, const V &v)
 {
   for (auto i = hb_iter (c); i; i++)
     *i = v;
